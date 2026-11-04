@@ -31,7 +31,7 @@ fi
 if grep -q XXX /etc/bam-ioc.env; then echo "/etc/bam-ioc.env still has a placeholder (XXX); edit and rerun" >&2; exit 1; fi
 
 [ ! -e "$DEST" ] || { echo "$DEST exists; refusing to overwrite" >&2; exit 1; }
-mkdir -p /opt/bam && cp -a "$PWD" "$DEST"
+mkdir -p /opt/bam && cp -a "$PWD" "$DEST" && chown -R root:root "$DEST"   # root runs it: not writable by xilinx
 
 # Offline wheels into the PYNQ venv. (The service itself sources /etc/profile.d/boardname.sh:
 # xrfclk reads $BOARD at import, which sudo / non-login shells lack.)

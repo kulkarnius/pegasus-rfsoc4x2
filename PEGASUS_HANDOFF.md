@@ -16,7 +16,7 @@ systemd, because it drives the FPGA directly through QICK. Estimation (fits, pha
 board. Analysis code reads the records.
 
 Bench status: 10⁴ shots at 10 Hz with none missed, on a function generator. The beamline DG645 at
-2.5 Hz is next, and so are the static IP and NTP on the board (rfsoc PLAN B1–B4). **The board is not
+2.5 Hz is next, and so is NTP on the board (rfsoc PLAN B1, B3, B4); its fixed address, 10.0.0.27, is done (B2). **The board is not
 on the lab network as a production host yet.** Until it is, everything below is desk work against
 `ioc.py --fake`.
 
@@ -82,7 +82,7 @@ Every readback refuses client writes.
 
 | | |
 |---|---|
-| Host | RFSoC 4x2, PYNQ v3.0.1 (Ubuntu-based, aarch64). Hostname and static IP **not chosen yet** (rfsoc B2; today DHCP, last seen 10.0.0.151). |
+| Host | RFSoC 4x2, PYNQ v3.0.1 (Ubuntu-based, aarch64). **10.0.0.27**: a DHCP reservation on 10.0.0.1 for MAC `fc:c2:3d:6f:3e:27` (rfsoc B2, 2026-11-04). The board may move later; the reservation is where the address changes. |
 | CA server | Port **5064** (the only IOC on that host, so no ladder rung). Bound to the board's IP (`EPICS_CAS_INTF_ADDR_LIST`), beacons to `10.0.0.255`. **No PVA.** |
 | Clients | The production env's `EPICS_CA_ADDR_LIST=10.0.0.255` broadcast already reaches port 5064. Add a unicast `<ip>` entry if pegasus prefers explicit entries. |
 | Time | `systemd-timesyncd` → `10.0.0.1`, no fallback (`board/timesyncd-pegasus.conf`). |

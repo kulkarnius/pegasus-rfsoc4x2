@@ -14,3 +14,6 @@ recs/
 
 # Built board bundles (tools/bundle.py)
 artifacts/
+
+# Agent tooling
+.serena/
