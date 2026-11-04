@@ -1,0 +1,18 @@
+# The BAM IOC as a service (PLAN wave 2 F7). Assumes this repo's board/ and fw/ are copied to /home/xilinx/bam.
+#   sudo cp bam-ioc.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now bam-ioc
+#   journalctl -u bam-ioc -f
+[Unit]
+Description=BAM RFSoC 4x2 EPICS IOC (QICK tProc v2)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=root
+WorkingDirectory=/home/xilinx/bam/board
+# BOARD (xrfclk reads it at import), the PYNQ venv and XRT: a non-login root shell gets none of them
+ExecStart=/bin/bash -c 'source /etc/profile.d/boardname.sh && source /etc/profile.d/pynq_venv.sh && source /etc/profile.d/xrt_setup.sh && exec python3 ioc.py --bit /home/xilinx/bam/fw/qick_4x2.bit'
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+# Large or re-downloadable binaries: pinned by hash in SHA256SUMS, sources in SPEC §8 / PLAN wave 2 T.
+fw/rfsoc4x2_v3.0.1.zip
+fw/*.bit
+fw/wheels/
+
+# Vivado batch runs and Python
+.Xil/
+__pycache__/
+
+# Captures and grabbed records
+recs/
+*.npz
+*.npy

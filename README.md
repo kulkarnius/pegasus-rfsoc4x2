@@ -1,0 +1,116 @@
+# RFSoC 4x2 BAM digitizer
+
+A RealDigital RFSoC 4x2 (XCZU48DR, Gen3) set up as a phase-locked, triggerable RF I/O box for the
+linac. Its first job is to replace the 20 GS/s scope that digitizes the BAM cavity ringdown
+(4758.4 MHz, τ = 16.1 ns), delivering scope-like records to the existing analysis in
+the BAM Sims analysis folder (separate from this repo).
+
+## Status (2026-10-27)
+
+- **Spec drafted.** No firmware, no hardware tests yet.
+- **Toolchain verified.** Vivado 2024.1 is at `C:\Xilinx\Vivado\2024.1` (matches PYNQ 3.1; the board runs v3.0.1 for QICK, SPEC §8). The ML
+  Enterprise license is valid to 2027-10-27 and covers releases up to 2024.1 only, so don't
+  upgrade Vivado. Board files load and a test synthesis for the ZU48DR passes.
+- **Under git since 2026-11-04** (local, no remote). The PYNQ image, the bitstream and the wheels
+  are not tracked; [SHA256SUMS](SHA256SUMS) pins them (`sha256sum -c SHA256SUMS`).
+- **Next step:** wave 1 in [PLAN.md](PLAN.md), which is phase 0 (SPEC §9: bring-up and the
+  clock-risk measurement on the stock PYNQ image) plus the desk work that needs no board.
+- **Wave 2 drafted (2026-11-02):** triggered acquisition, AWG and an EPICS IOC on the stock QICK
+  tProc-v2 firmware ([PLAN.md](PLAN.md), second half). Its desk tasks can start before wave 1 ends.
+- **Bench plan (2026-11-03):** PLAN §S. Stage 1 brings QICK up on the v3.0.1 card; stage 2 splits the
+  S-band clock into two tile-224 readouts and runs the Noise Characterization CRLB analysis on it.
+- **Bench results (2026-11-03):**
+  - Stage 1 done: QICK on v3.0.1, the IOC, the 10 Hz trigger with 10⁴ shots and none missed, and the loopback bound check.
+  - Stage 2: S1 and S3 done. The ADC D/C differential floor is **11.7 ± 1.2 fs at 2856 MHz**, a per-shot offset that stays flat from 116 ns to 14.8 µs.
+  - Still open: S2 (relock repeats), the floor's source (try another trigger rate or an RFDC calibration freeze), G7 and the speed grade.
+  - Details in PLAN §S.
+- **Wave 3 drafted (2026-11-04):** the beamline DG645 as trigger, the board hardened as a lab host
+  (static IP, NTP to 10.0.0.1), and integration into `pegasus_epics_upgrade` (registry name
+  `PEG:DIAG:BAM1:`, aggregator channels, T4 run against the shot counter). See
+  [PLAN.md](PLAN.md), last section: part B here, part P in the pegasus repo.
+
+## Files
+
+| Path | What it is |
+|---|---|
+| [CLAUDE.md](CLAUDE.md) | Instructions for Claude Code sessions in this repo: which files to read first, and project rules. |
+| [SPEC.md](SPEC.md) | The spec: requirements, channel plan, board facts, clock and frequency plan, trigger, record format, framework, phases, open questions. **Normative.** |
+| [NOTES.md](NOTES.md) | Decision log: the questions behind the spec, the reasoning, and the user's standing directives. Read this to know *why*. |
+| [PLAN.md](PLAN.md) | Wave 1 (phase-noise bring-up) and wave 2 (QICK acquisition, AWG, EPICS) work plans: tasks, bench checks, exit criteria, open decisions. |
+| [papercuts.md](papercuts.md) | Tooling problems that cost time (Vivado logs, AMD downloads, PDF reading). **Check it first when a tool fails oddly.** |
+| [tools/freqplan.py](tools/freqplan.py) | Ranks ADC/DAC sample rates on the 119 MHz grid by alias spacing. |
+| [tools/clocks.py](tools/clocks.py) | Decodes and checks LMK04828/LMX2594 register files, and derives the 2380 MHz LMK variants. |
+| [tools/phasenoise.py](tools/phasenoise.py) | Phase noise and integrated jitter of a captured tone (raw or I/Q), with an AM floor. |
+| [tools/board_capture.py](tools/board_capture.py) | Runs on the board: DAC tone → ADC I/Q captures (`.npz`), optionally after loading a clock variant. |
+| [tools/board_relock.py](tools/board_relock.py) | Runs on the board: re-locks the LMX or tile PLLs repeatedly and scores the loopback's close-in noise. |
+| [board/daq.py](board/daq.py) | Runs on the board: the one-shot QICK tProc-v2 program per trigger, arm, and ring-buffer readout; `FakeDaq` for the PC. |
+| [board/ioc.py](board/ioc.py) | The caproto EPICS IOC over `daq.py` (PV list in PLAN wave 2 §H). `--fake` runs it on the PC. |
+| [board/bam-ioc.service](board/bam-ioc.service) | systemd unit that runs the IOC at boot. |
+| [SHA256SUMS](SHA256SUMS) | Hashes of the untracked binaries in `fw/` (PYNQ image, `.bit`, wheels). Their sources are in SPEC §8 and PLAN wave 2 T. |
+| `fw/` | Board-side downloads: `wheels/` (qick, caproto, tqdm for the offline board), and later the QICK bitstream and `soccfg.json`. |
+| [tools/record.py](tools/record.py) | Host: a `REC` record → `[t, ref, sig, pd]` real samples / CSV; `grab N dir` saves records from the IOC. |
+| [clocks/](clocks/) | Stock 4x2 clock register files (RFSoC-PYNQ) and the derived wave-1 LMK variants. |
+| [tools/vivado.cmd](tools/vivado.cmd) | One-line Vivado 2024.1 batch runner. |
+| [tools/vivado_check.tcl](tools/vivado_check.tcl) | Toolchain smoke test: board files, version, parts, trivial synth. |
+| [docs/](docs/) | Local copies of the data sheets, manuals and board files (list in SPEC §12). |
+| [boards/](boards/) | RealDigital board files extracted from `docs/rfsoc4x2_board_files.zip`. |
+
+## Commands
+
+Frequency plan (the top row is the chosen rate):
+
+```bash
+python tools/freqplan.py adc
+```
+
+```text
+ fs (MHz)   n  margin  2856:z/alias  4760:z/alias
+     4046  34     178  z2/  1190     z3/   712
+```
+
+`python tools/freqplan.py dac` tops out at 8092 MS/s with a 357 MHz margin. The script runs its own
+self-check first.
+
+IOC without a board (needs `pip install numpy caproto`), then save 10 records as CSV from a second
+shell. Both clients need `EPICS_CA_ADDR_LIST=127.0.0.1` and `EPICS_CA_AUTO_ADDR_LIST=NO`:
+
+```bash
+python board/ioc.py --fake --interfaces 127.0.0.1
+```
+
+```bash
+python -m caproto.commandline.put BAM:RFSOC:ACQ:Arm On
+```
+
+```bash
+python tools/record.py grab 10 recs/
+```
+
+On the board: `sudo python3 board/ioc.py --bit <qick tProc-v2 4x2 .bit>` (PLAN F1 for the file).
+
+Vivado smoke test, from cmd or PowerShell in this folder (takes about a minute):
+
+```bash
+tools\vivado.cmd tools\vivado_check.tcl
+```
+
+Expect `BOARDS: realdigital.org:rfsoc4x2:part0:1.0`, `VERSION: 2024.1` and `SYNTH_OK`. Vivado
+echoes every Tcl line as `# <line>`, so when grepping a log, anchor the marker: `^SYNTH_OK`. From
+Git Bash, use `cmd //c "tools\\vivado.cmd tools\\vivado_check.tcl"`. Runs leave a `.Xil/` folder,
+which is safe to delete.
+
+Any other script: `tools\vivado.cmd script.tcl [-tclargs ...]`. For interactive queries, run
+`C:\Xilinx\Vivado\2024.1\bin\vivado.bat -mode tcl` in a terminal. To use the board files in your own
+script, add `set_param board.repoPaths C:/fpga/rfsoc4x2/boards`.
+
+## Key numbers
+
+| | |
+|---|---|
+| Reference into CLK IN | 119 MHz = 2856/24, about +6 dBm (interim: none. The board runs free on its onboard 10 MHz; the lab has no 10 MHz) |
+| ADC / DAC sample rate | 4046 / 8092 MS/s, both from one LMX at 8092 MHz |
+| PL clock / SYSREF | 252.875 MHz / 7.4375 MHz |
+| ADC A / B / C / D | master 2856 MHz / cavity (via coupler) / EO photodiode / spare |
+| Cavity alias | zone 3, 712.4 MHz; master alias zone 2, 1190 MHz (spectrally inverted) |
+| Trigger | TTL into the PPS SMA |
+| Control | PYNQ + pythonSoftIOC (EPICS), recommended |

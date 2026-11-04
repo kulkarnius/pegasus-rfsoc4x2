@@ -1,0 +1,7 @@
+* text=auto
+# scp'd to the Linux board straight from the working tree
+board/** text eol=lf
+tools/vivado.cmd text eol=crlf
+*.pdf binary
+*.zip binary
+*.xlsx binary
