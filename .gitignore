@@ -11,3 +11,6 @@ __pycache__/
 recs/
 *.npz
 *.npy
+
+# Built board bundles (tools/bundle.py)
+artifacts/

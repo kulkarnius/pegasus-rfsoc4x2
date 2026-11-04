@@ -1,0 +1,389 @@
+[
+ {
+  "name": "ACQ:Arm",
+  "type": "enum",
+  "access": "rw",
+  "count": 1,
+  "enum": [
+   "Off",
+   "On"
+  ]
+ },
+ {
+  "name": "ACQ:Batched",
+  "type": "long",
+  "access": "ro",
+  "count": 1
+ },
+ {
+  "name": "ACQ:Count",
+  "type": "long",
+  "access": "ro",
+  "count": 1
+ },
+ {
+  "name": "ACQ:Delay",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "us"
+ },
+ {
+  "name": "ACQ:Length",
+  "type": "long",
+  "access": "rw",
+  "count": 1
+ },
+ {
+  "name": "ACQ:Missed",
+  "type": "long",
+  "access": "ro",
+  "count": 1
+ },
+ {
+  "name": "ACQ:Rate",
+  "type": "double",
+  "access": "ro",
+  "count": 1,
+  "units": "Hz"
+ },
+ {
+  "name": "AWG0:Delay",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "us"
+ },
+ {
+  "name": "AWG0:Freq",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "MHz"
+ },
+ {
+  "name": "AWG0:Gain",
+  "type": "double",
+  "access": "rw",
+  "count": 1
+ },
+ {
+  "name": "AWG0:I",
+  "type": "double",
+  "access": "rw",
+  "count": 65536
+ },
+ {
+  "name": "AWG0:Mode",
+  "type": "enum",
+  "access": "rw",
+  "count": 1,
+  "enum": [
+   "off",
+   "cw",
+   "env",
+   "raw"
+  ]
+ },
+ {
+  "name": "AWG0:Nqz",
+  "type": "long",
+  "access": "rw",
+  "count": 1
+ },
+ {
+  "name": "AWG0:Phase",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "deg"
+ },
+ {
+  "name": "AWG0:Q",
+  "type": "double",
+  "access": "rw",
+  "count": 65536
+ },
+ {
+  "name": "AWG1:Delay",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "us"
+ },
+ {
+  "name": "AWG1:Freq",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "MHz"
+ },
+ {
+  "name": "AWG1:Gain",
+  "type": "double",
+  "access": "rw",
+  "count": 1
+ },
+ {
+  "name": "AWG1:I",
+  "type": "double",
+  "access": "rw",
+  "count": 65536
+ },
+ {
+  "name": "AWG1:Mode",
+  "type": "enum",
+  "access": "rw",
+  "count": 1,
+  "enum": [
+   "off",
+   "cw",
+   "env",
+   "raw"
+  ]
+ },
+ {
+  "name": "AWG1:Nqz",
+  "type": "long",
+  "access": "rw",
+  "count": 1
+ },
+ {
+  "name": "AWG1:Phase",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "deg"
+ },
+ {
+  "name": "AWG1:Q",
+  "type": "double",
+  "access": "rw",
+  "count": 65536
+ },
+ {
+  "name": "BuildDate",
+  "type": "string",
+  "access": "ro",
+  "count": 1
+ },
+ {
+  "name": "CH0:Freq",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "MHz"
+ },
+ {
+  "name": "CH0:I",
+  "type": "long",
+  "access": "ro",
+  "count": 8192
+ },
+ {
+  "name": "CH0:Q",
+  "type": "long",
+  "access": "ro",
+  "count": 8192
+ },
+ {
+  "name": "CH1:Freq",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "MHz"
+ },
+ {
+  "name": "CH1:I",
+  "type": "long",
+  "access": "ro",
+  "count": 8192
+ },
+ {
+  "name": "CH1:Q",
+  "type": "long",
+  "access": "ro",
+  "count": 8192
+ },
+ {
+  "name": "CH2:Freq",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "MHz"
+ },
+ {
+  "name": "CH2:I",
+  "type": "long",
+  "access": "ro",
+  "count": 8192
+ },
+ {
+  "name": "CH2:Q",
+  "type": "long",
+  "access": "ro",
+  "count": 8192
+ },
+ {
+  "name": "Heartbeat",
+  "type": "long",
+  "access": "ro",
+  "count": 1
+ },
+ {
+  "name": "INFO:Firmware",
+  "type": "char",
+  "access": "ro",
+  "count": 128
+ },
+ {
+  "name": "INFO:FsDec",
+  "type": "double",
+  "access": "ro",
+  "count": 1,
+  "units": "MHz"
+ },
+ {
+  "name": "INFO:Qick",
+  "type": "string",
+  "access": "ro",
+  "count": 1
+ },
+ {
+  "name": "INFO:RecFormat",
+  "type": "long",
+  "access": "ro",
+  "count": 1
+ },
+ {
+  "name": "INFO:T0",
+  "type": "double",
+  "access": "ro",
+  "count": 1,
+  "units": "us"
+ },
+ {
+  "name": "MRK0:Delay",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "us"
+ },
+ {
+  "name": "MRK0:Width",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "us"
+ },
+ {
+  "name": "MRK1:Delay",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "us"
+ },
+ {
+  "name": "MRK1:Width",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "us"
+ },
+ {
+  "name": "MRK2:Delay",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "us"
+ },
+ {
+  "name": "MRK2:Width",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "us"
+ },
+ {
+  "name": "MRK3:Delay",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "us"
+ },
+ {
+  "name": "MRK3:Width",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "us"
+ },
+ {
+  "name": "MRK4:Delay",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "us"
+ },
+ {
+  "name": "MRK4:Width",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "us"
+ },
+ {
+  "name": "MRK5:Delay",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "us"
+ },
+ {
+  "name": "MRK5:Width",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "us"
+ },
+ {
+  "name": "MRK6:Delay",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "us"
+ },
+ {
+  "name": "MRK6:Width",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "us"
+ },
+ {
+  "name": "MRK7:Delay",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "us"
+ },
+ {
+  "name": "MRK7:Width",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "us"
+ },
+ {
+  "name": "REC",
+  "type": "long",
+  "access": "ro",
+  "count": 49160
+ },
+ {
+  "name": "Version",
+  "type": "string",
+  "access": "ro",
+  "count": 1
+ }
+]

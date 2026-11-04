@@ -1,16 +1,19 @@
-# The BAM IOC as a service (PLAN wave 2 F7). Assumes this repo's board/ and fw/ are copied to /home/xilinx/bam.
-#   sudo cp bam-ioc.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now bam-ioc
+# The BAM IOC as a service (PLAN B3/B4). Installed by `sudo bash board/install.sh` from an unpacked
+# bundle (tools/bundle.py); runs from /opt/bam/current -> /opt/bam/<version>. Site values (prefix, IP,
+# EPICS_* server vars) live in /etc/bam-ioc.env, which installs never overwrite.
 #   journalctl -u bam-ioc -f
 [Unit]
 Description=BAM RFSoC 4x2 EPICS IOC (QICK tProc v2)
-After=network-online.target
-Wants=network-online.target
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
 
 [Service]
 User=root
-WorkingDirectory=/home/xilinx/bam/board
-# BOARD (xrfclk reads it at import), the PYNQ venv and XRT: a non-login root shell gets none of them
-ExecStart=/bin/bash -c 'source /etc/profile.d/boardname.sh && source /etc/profile.d/pynq_venv.sh && source /etc/profile.d/xrt_setup.sh && exec python3 ioc.py --bit /home/xilinx/bam/fw/qick_4x2.bit'
+EnvironmentFile=/etc/bam-ioc.env
+WorkingDirectory=/opt/bam/current/board
+# BOARD (xrfclk reads it at import), the PYNQ venv and XRT: a non-login root shell gets none of them.
+# EnvironmentFile puts BAM_* in bash's environment, so bash expands them (inside the quotes).
+ExecStart=/bin/bash -c 'source /etc/profile.d/boardname.sh && source /etc/profile.d/pynq_venv.sh && source /etc/profile.d/xrt_setup.sh && exec python3 ioc.py --bit /opt/bam/current/fw/qick_4x2.bit --prefix "$BAM_PREFIX" --interfaces "$BAM_IP" --state /var/lib/bam-ioc/state.json'
 Restart=on-failure
 RestartSec=10
 
