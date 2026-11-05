@@ -43,6 +43,11 @@ mkdir -p /etc/systemd/timesyncd.conf.d
 cp "$DEST/board/timesyncd-pegasus.conf" /etc/systemd/timesyncd.conf.d/pegasus.conf
 systemctl enable systemd-time-wait-sync.service
 systemctl restart systemd-timesyncd
+# Jupyter runs as root on ports 80/9090. "disable" alone isn't enough: PYNQ's clear_pl_statefile.service
+# (enabled, WantedBy=basic.target) has Requires=jupyter.service and starts it at every boot. To get it back
+# for bench work: systemctl unmask jupyter && systemctl start jupyter (stop bam-ioc first).
+systemctl disable clear_pl_statefile.service
+systemctl mask --now jupyter.service
 mkdir -p /var/lib/bam-ioc
 
 if [ -L /opt/bam/current ]; then point /opt/bam/previous "$(readlink /opt/bam/current)"; fi

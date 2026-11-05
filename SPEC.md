@@ -116,6 +116,11 @@ Taken from the RealDigital *RFSoC 4x2 Reference Manual* rev A6 unless marked oth
   - **Speed grade**: the board files give `xczu48dr-ffvg1517-2-e`. The schematic title block (a
     "Prototype" variant) says `-1`. Check the marking on the chip. The plan fits either grade: the
     DAC limit is 9.85 GS/s at -2 and 8.92 GS/s at -1.
+    **2026-11-04:** the BOM (`docs/rfsoc4x2_bom.xlsx`) also lists `XCZU48DR-1FFVG1517E`, so two
+    RealDigital documents say -1 against the board files' -2. The heatsink hides the marking, and
+    JTAG can't settle it (the IDCODE names the device, not the speed bin). **Treat the chip as -1.**
+    The ADCs (4423.68 MS/s, under 5 GS/s) are unaffected. QICK's DACs at 9830.4 MS/s are then above
+    the -1 limit, so the AWG is out of spec until the marking is read (G8).
 - **ADC (DS926 Table 117 / 127, ZU4xDR dual tile)**:
   - 1–5 GS/s, 14 bits.
   - Full scale 1 Vpp differential ≈ **+1 dBm**.

@@ -485,9 +485,13 @@ One plan, here, in two parts. **Code and config land in the repo that owns them:
   - From the PC over CA: `Version` `ef21a46`, `INFO:Qick` 0.2.442, and `INFO:Firmware` sha256 `dc3799…6e08`, which equals SHA256SUMS.
   - `ACQ:Arm` On compiled and loaded on the real hardware with no trigger connected (`Count` 0), and `state.json` was written. Then `ACQ:Arm` Off, to leave it as found.
   - The install left `/opt/bam/ef21a46` owned by `xilinx` (`cp -a`), so root runs code that user can edit. `install.sh` now chowns to root; on this install, run `sudo chown -R root:root /opt/bam/ef21a46`.
-  - **B4 done 2026-11-04:** the `xilinx` password is changed; `jupyter.service` is disabled and stopped, which also stops the port-80 redirect, so 80 and 9090 are closed; `/opt/bam/ef21a46` is chowned to root. `overlayroot` is still open (B5e state file).
-- **Not yet run on the board:**
-  - A trigger on J1 pin 10 through the installed service, a reboot test (comes back up, re-armed from `state.json`), and `--rollback`.
+  - **B4 done 2026-11-04:** the `xilinx` password is changed. `jupyter.service` was disabled and stopped, which also stops the port-80 redirect, so 80 and 9090 were closed, **but it came back on reboot** (see the reboot test below); `/opt/bam/ef21a46` is chowned to root. `overlayroot` is still open (B5e state file).
+- **v0.1.0 installed and reboot-tested, 2026-11-04:**
+  - `/opt/bam/current` points to `v0.1.0` (owned by root), and `previous` to `ef21a46`.
+  - After `sudo reboot`, the clock synced to 10.0.0.1 at 56 s uptime: its first offset was +263 ms, from drift while it was off. `systemd-time-wait-sync` then finished and `bam-ioc` started on its own.
+  - Over CA: `Version` `v0.1.0`, the firmware sha256 matches, and the setpoints came back from `state.json` (left disarmed, as saved). Arming works after the reboot.
+  - **Jupyter was running again** on 80/9090 although disabled: PYNQ's `clear_pl_statefile.service` (`WantedBy=basic.target`) has `Requires=jupyter.service`. That unit only does `PL.reset()`, and it was failing on this boot anyway. `install.sh` now disables it and masks `jupyter`. On this install, run `sudo systemctl disable clear_pl_statefile && sudo systemctl mask --now jupyter`.
+- **Not yet run on the board:** a trigger on J1 pin 10 through the installed service, a reboot that re-arms from an armed `state.json`, and `--rollback`.
   - `--rollback` with no previous install fails without a clear message.
   - If `pip` fails after the copy, delete `/opt/bam/<version>` before rerunning.
   - `bam-ioc` waits for `time-sync.target`, and `systemd-time-wait-sync` has no timeout. So off the
