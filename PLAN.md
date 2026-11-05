@@ -501,6 +501,10 @@ One plan, here, in two parts. **Code and config land in the repo that owns them:
   - `ACQ:Batched` read 16 and didn't grow afterwards. That's most likely contact bounce while plugging in, so `Count` includes those edges.
   - **Bug found and fixed in `ioc.py` (not yet deployed):** `ACQ:Rate` read 2.99. It counted records per ~1 s tick, and at 2.5 Hz a tick holds 2 or 3. It now divides the count change by the time between the ticks' newest record stamps (`rate()`, checked in `--check`).
   - Clocks: `REC` stamps were 180 ms ahead of the PC, and the PC is 200 ms behind 10.0.0.1 (SNTP), so the board reads ≈ 20 ms behind 10.0.0.1. timesyncd showed +23 ms six packets after boot. That's under the 50 ms guard but thin; recheck once timesyncd has settled, and before P6.
+- **v0.1.1 installed, 2026-11-05** (rate fix plus `PollIntervalMaxSec=64`):
+  - `current` points to `v0.1.1` and `previous` to `v0.1.0`. The IOC came back armed from `state.json`.
+  - `ACQ:Rate` reads 2.498–2.499. 31 consecutive records at 400.1 ± 0.8 ms; `Missed` and `Batched` 0. Ports 80/9090 are still closed.
+  - Clock, by SNTP to 10.0.0.1 every 30 s: +28 ms behind at the first packet, then 7.8 ms ahead, settling to < 1 ms within 5 min (0.3 ms at 300 s; timesyncd −0.77 ms, frequency +112 ppm). The 64 s cap fixed the 21 ms that had stood for 27 min under the default 34 min cap.
 - **Not yet run on the board:** a trigger on J1 pin 10 through the installed service, a reboot that re-arms from an armed `state.json`, and `--rollback`.
   - `--rollback` with no previous install fails without a clear message.
   - If `pip` fails after the copy, delete `/opt/bam/<version>` before rerunning.
