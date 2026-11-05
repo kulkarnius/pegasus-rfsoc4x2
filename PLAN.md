@@ -124,7 +124,7 @@ whether the phase numbers are any good; wave 2 builds the box around it.
       outputs, each at its PV-set delay.
 - [ ] A CA client on the PC (`caget`/`caput`, pyepics, MATLAB) sets every PV in H and reads the
       records. A setpoint change takes effect within one re-arm.
-- [ ] No missed records for 1 h at the machine rep rate (R5), shown by a gap-free shot counter.
+- [x] No missed records for 1 h at the machine rep rate (R5), shown by a gap-free shot counter. **Met 2026-11-05:** 15 h 58 min on the DG645 at 2.5 Hz under the installed `v0.1.1` service, `Count` 143,692 against 143,700 expected, `Missed` 0, `Batched` 0.
 - [ ] `tools/record.py` turns a record into `[t, ref, sig, pd]` CSV that the Sims scripts read
       unchanged (R5).
 - [ ] The IOC runs as a systemd service and comes back after a power cycle.
@@ -505,7 +505,12 @@ One plan, here, in two parts. **Code and config land in the repo that owns them:
   - `current` points to `v0.1.1` and `previous` to `v0.1.0`. The IOC came back armed from `state.json`.
   - `ACQ:Rate` reads 2.498–2.499. 31 consecutive records at 400.1 ± 0.8 ms; `Missed` and `Batched` 0. Ports 80/9090 are still closed.
   - Clock, by SNTP to 10.0.0.1 every 30 s: +28 ms behind at the first packet, then 7.8 ms ahead, settling to < 1 ms within 5 min (0.3 ms at 300 s; timesyncd −0.77 ms, frequency +112 ppm). The 64 s cap fixed the 21 ms that had stood for 27 min under the default 34 min cap.
-- **Not yet run on the board:** a trigger on J1 pin 10 through the installed service, a reboot that re-arms from an armed `state.json`, and `--rollback`.
+- **Dark scans, production vs bench, 2026-11-05.** Same splitter and capped input as the 11-03 noise-only sets, AWGs off, readouts 0/1 both at the set NCO. Data and script are in `Noise Characterization/rfsoc-production-data/` (`dark_L256_2856`, `dark_L8192_2856`, `dark_L256_600`, `dark_compare.py`, `dark_compare.png`), against `rfsoc_s_band_only_noise`, `…_L8192` and `lb600_noise`.
+  - **Floor unchanged:** median in-band PSD −81.6 to −81.7 dB(codes²/Hz) on both readouts in every set (bench −81.3 to −82.0). The rms per quadrature is 1.20–1.22 codes in every production set; the bench read 1.19–1.49 because of its bursts. DC offsets are < 0.02 codes both days.
+  - **Bench bursts gone:** on 11-03, about 5–6 of 300 shots per S-band set carried excess noise up to 6× rms, in the same shots on both channels, at +180 to +195 MHz from the 2856 MHz NCO. That is what made the per-shot rms spread 16–48% and ch0–ch1 correlation 0.14 (L = 256). Production has none in 800 shots: spread 5–6% at L = 256 and 1.0% at L = 8192, matching stationary white noise; correlation 0.03. The RF candidates for that offset are 1380.7, 3043 or 5804 MHz (the 5.8 GHz Wi-Fi band), so the workstation's Wi-Fi is one hypothesis, untested.
+  - **Board-internal lines, both days at the same level:** ±91–93 MHz from the NCO at 2856 MHz (17–23 dB over the floor at L = 8192), and −47 MHz at 600 MHz. They sit far outside the BAM fit kernel. The 600 MHz bench-only line at −108.6 MHz is gone. A small new bump at ≈ +225 MHz on readout 1 at 600 MHz sits in the decimation filter's roll-off.
+- **Unattended overnight, 2026-11-05:** armed on the DG645 from 00:59:57 to 16:58 UTC. `Count` 143,692 against 143,700 expected (57,480 s × 2.5 Hz), `Missed` 0, `Batched` 0, `Rate` 2.4999. The board clock was 0.05 ms off 10.0.0.1 after 910 NTP packets.
+- **Not yet run on the board:** a reboot that re-arms from an armed `state.json`, and `--rollback`.
   - `--rollback` with no previous install fails without a clear message.
   - If `pip` fails after the copy, delete `/opt/bam/<version>` before rerunning.
   - `bam-ioc` waits for `time-sync.target`, and `systemd-time-wait-sync` has no timeout. So off the

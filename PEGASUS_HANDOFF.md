@@ -1,6 +1,7 @@
 # Handoff: the BAM RFSoC digitizer into pegasus_epics_upgrade
 
-From `C:\fpga\rfsoc4x2` to the `pegasus_epics_upgrade` repo, 2026-11-04.
+From `C:\fpga\rfsoc4x2` to the `pegasus_epics_upgrade` repo. Written 2026-11-04,
+updated 2026-11-05 after the board went into production.
 This is part P of [PLAN.md](PLAN.md) "Wave 3", written so a session in the pegasus repo can
 work from it alone. Follow that repo's own `CLAUDE.md` (worktree, papercuts, T1/T2 before a PR).
 
@@ -15,13 +16,21 @@ The IOC is `board/ioc.py`: Python, **caproto, CA only, no PVA**. It runs **on th
 systemd, because it drives the FPGA directly through QICK. Estimation (fits, phase) is not on the
 board. Analysis code reads the records.
 
-Bench status: 10⁴ shots at 10 Hz with none missed, on a function generator. The beamline DG645 at
-2.5 Hz is next, and so is NTP on the board (rfsoc PLAN B1, B3, B4); its fixed address, 10.0.0.27, is done (B2). **The board is not
-on the lab network as a production host yet.** Until it is, everything below is desk work against
-`ioc.py --fake`.
+**Status (2026-11-05): live in production, commissioning prefix.** The board sits at its production
+location on 10.0.0.27 and runs **`v0.1.1`** under systemd as `PEGTEST:DIAG:BAM1:`. It's armed on the
+beamline DG645 trigger at 2.5 Hz.
+- **Gap-free run:** from 00:59:57 to 16:58 UTC, 15 h 58 min, `ACQ:Count` reached 143,692 against 143,700
+  expected, with `ACQ:Missed` and `ACQ:Batched` both 0.
+- **Clock:** within 1 ms of 10.0.0.1 five minutes after boot, and 0.05 ms after 16 h.
+- **Not yet:** no RF is connected (a splitter with a capped input sits on readouts 0/1), so the records
+  are noise until the master and cavity are cabled. The shot counter isn't on PegasusControl yet (P6).
+- **Testing:** P1–P5 can be tested against the real board now, not only `ioc.py --fake` (§8).
 
-**There is no tag yet.** The first one, `v0.1.0`, is cut when this work is committed in rfsoc4x2. Until
-then, `pvs.json` is the working-tree file and `Version` serves `dev`, so pin to `v0.1.0` once it exists.
+**Pin `v0.1.1`** (tag at commit `6ee3326`). Its `pvs.json` is byte-identical to `v0.1.0`'s. The
+differences are in the board's behaviour, not its PVs:
+- `ACQ:Rate` is computed from record timestamps; `v0.1.0` read 2–3 Hz at 2.5 Hz.
+- timesyncd polls at most every 64 s.
+- Jupyter is masked by the install.
 
 ## 2. The contract
 
@@ -63,10 +72,16 @@ Every readback refuses client writes.
 - **Timestamp.** Every per-shot PV (`REC`, `CH<n>:I/Q`, `ACQ:Count`) carries one timestamp: the
   board's wall clock when the IOC first sees the shot complete. That's after the trigger by
   `INFO:T0` + `ACQ:Delay` + the window, plus a poll of ≤ 2 ms and the readout time. It should be a few
-  ms, but it hasn't been measured. P6 measures it against the shot counter. It is only meaningful
-  once the board's NTP points at 10.0.0.1 (rfsoc PLAN B3). The service waits for `time-sync.target`.
+  ms, but it hasn't been measured; P6 measures it against the shot counter.
+  - **The board's clock is good:** it tracks 10.0.0.1 within 1 ms from 5 min after boot, 0.05 ms after
+    16 h. The service waits for `time-sync.target`, so no record goes out before the first sync.
+  - **Any host that records BAM shots must be NTP-disciplined to 10.0.0.1 too** (`deploy/configure_time_sync.ps1`).
+    The undisciplined workstation at 10.0.0.17 was 200 ms off, which would put every BAM stamp outside a 50 ms guard.
+  - **Intervals between consecutive `REC` stamps** were 400.0 ± 0.8 ms on the DG645 at 2.5 Hz.
 - **`ACQ:Batched`** counts records that came out of one poll together, so they share a timestamp and a
-  timestamp-binning recorder could misassign them. It should stay 0; treat a rise as a fault.
+  timestamp-binning recorder could misassign them. It should stay 0; treat a rise as a fault. The one
+  rise seen so far (16, once) was contact bounce while the trigger cable was being plugged in. Those
+  bounce edges also advanced `ACQ:Count`.
 - **`ACQ:Count` is not a shot id.** It's the firmware's counter and restarts at 1 on every arm, and
   **any setpoint write while armed re-arms**. Triggers that arrive during a re-arm are neither
   recorded nor counted in `Missed`. Use it as a cross-check against `PEG:TIM:CTR1:PulseId_RBV` between
@@ -82,11 +97,13 @@ Every readback refuses client writes.
 
 | | |
 |---|---|
-| Host | RFSoC 4x2, PYNQ v3.0.1 (Ubuntu-based, aarch64). **10.0.0.27**: a DHCP reservation on 10.0.0.1 for MAC `fc:c2:3d:6f:3e:27` (rfsoc B2, 2026-11-04). The board may move later; the reservation is where the address changes. |
-| CA server | Port **5064** (the only IOC on that host, so no ladder rung). Bound to the board's IP (`EPICS_CAS_INTF_ADDR_LIST`), beacons to `10.0.0.255`. **No PVA.** |
-| Clients | The production env's `EPICS_CA_ADDR_LIST=10.0.0.255` broadcast already reaches port 5064. Add a unicast `<ip>` entry if pegasus prefers explicit entries. |
-| Time | `systemd-timesyncd` → `10.0.0.1`, no fallback (`board/timesyncd-pegasus.conf`). |
-| Trigger | Its own DG645 output from the same T0 as the shot counter's fan-out, so one DG645 cycle gives one record and one `PulseId`. |
+| Host | RFSoC 4x2, PYNQ v3.0.1 (PynqLinux, Ubuntu 22.04, aarch64), hostname `pynq`. **10.0.0.27**: a DHCP reservation on 10.0.0.1 for MAC `fc:c2:3d:6f:3e:27` (rfsoc B2). The board may move later; the reservation is where the address changes. |
+| Installed | `/opt/bam/current` → `v0.1.1`; `previous` → `v0.1.0` (`sudo bash /opt/bam/…/board/install.sh --rollback`). Site values in `/etc/bam-ioc.env`: `BAM_PREFIX=PEGTEST:DIAG:BAM1:`, `BAM_IP=10.0.0.27`. Switching to production means editing `BAM_PREFIX` to `PEG:DIAG:BAM1:` and `sudo systemctl restart bam-ioc`, done by whoever holds the board's sudo password. |
+| CA server | Port **5064** (the only IOC on that host, so no ladder rung). Bound to 10.0.0.27 (`EPICS_CAS_INTF_ADDR_LIST`), beacons to `10.0.0.255`. **No PVA.** |
+| Clients | The production env's `EPICS_CA_ADDR_LIST=10.0.0.255` broadcast already reaches port 5064. Add a unicast `10.0.0.27` entry if pegasus prefers explicit entries. |
+| Other services | Only SSH (22) and CA (5064) listen. Jupyter (ports 80, 9090) is masked; the PYNQ default password is changed. |
+| Time | `systemd-timesyncd` → `10.0.0.1`, no fallback, `PollIntervalMaxSec=64` (`board/timesyncd-pegasus.conf`). |
+| Trigger | A DG645 output, measured 2026-11-05: a 50 Ω source set for a high-Z load, 0/3.0 V, clean edge, positive polarity, 2.5 Hz. It goes straight to J1 pin 10 with **no terminator**, which would halve it. It must come from the same T0 as the shot counter's fan-out, so one DG645 cycle gives one record and one `PulseId`. Confirm this when the counter moves to PegasusControl. |
 
 ## 6. Work in pegasus_epics_upgrade
 
@@ -94,17 +111,20 @@ Every readback refuses client writes.
 |---|---|---|
 | P1 | **Issue + ADR 0017, "an IOC that runs on its instrument."** Record that the IOC's code, bundle and install live in rfsoc4x2, outside pegasus's bundle, install and supervisor system. Pegasus owns the name, the host facts and the recording, and its tests cover the copied `pvs.json`, the registry and the configs, never the IOC. Contrast with ADR 0010: the counter board's IOC runs on PegasusControl, while this is the first non-Windows IOC host. Add the RFSoC and the DG645 to `docs/planning/03_DEVICE_INVENTORY.md`, where the trigger source is `UNKNOWN`. Record in the triage doc §2 whether the BAM is in v1.0. | ADR merged, inventory rows in |
 | P2 | **Registry.** Allocate the prefix (proposed `PEG:DIAG:BAM1:`: a beam diagnostic, like `PEG:DIAG:ICT1:`, with `PEG:RF:` left to the LLRF IOC). Copy `pvs.json` in with its pinned tag (location is your call, e.g. `iocs/external/bam/`). Add `IocInfo("bam", ("PEG:DIAG:BAM1:",), <role>)` and a `parse_bam()` that maps the JSON to `PVEntry` (`double`→`ai`/`ao`, `long`→`longin`/`longout`, `enum`→`mbbi`/`mbbo`, `string`→`stringin`, `char`→`waveform`, waveforms by `count` > 1; record types are your convention to settle). Add a `pv_registry.md` section, then regenerate. | `python -m common.pv_registry check` and the T1 registry tests pass |
-| P3 | **Network and client env.** Host row in `docs/network_config.md` and in the README host diagram. Add `EPICS_CA_MAX_ARRAY_BYTES=1000000` to `config/epics_env.ps1` and `epics_env_test.ps1`. | `caget <prefix>REC` from PegasusControl and the workstation using only the repo's env scripts (against `--fake` until the board is up: see §7) |
+| P3 | **Network and client env.** Host row in `docs/network_config.md` and in the README host diagram. Add `EPICS_CA_MAX_ARRAY_BYTES=1000000` to `config/epics_env.ps1` and `epics_env_test.ps1`. | `caget PEGTEST:DIAG:BAM1:REC` from PegasusControl and the workstation using only the repo's env scripts (the board is up, §8) |
 | P4 | **Aggregator channels** in the production configs (the `aggregator_hybrid_*.yaml` in use and `aggregator_pulse_id.yaml`). `REC` as `ca`, `class: fast`, identity `version: …:Version`, `build_date: …:BuildDate`, plus `firmware`/`rec_format` under extra. `ACQ:Count` as fast. `ACQ:Missed`, `ACQ:Batched`, `ACQ:Delay`, `ACQ:Length` and `CH<n>:Freq` as slow. Under ADR 0016, `REC` is an array channel with its own `Save:` enable once that lands. Comment the `ACQ:Length` rule. Add a T1 test that loads the configs (pattern: `tests/unit/test_aggregator_pulse_id_config.py`). | T1/T2 green |
 | P5 | **T3.** If the simulated stack has no CA integer-array fast channel, add a fake `REC` there. Don't make T3 depend on rfsoc4x2. | T3 covers a fast CA array end to end |
 | P6 | **T4 acceptance** on PegasusControl: board, Arduino shot counter, DG645 at 2.5 Hz, 1 h, `shot_id_source: external_pulse_id`. Checks: no BAM INCOMPLETE shots; `ACQ:Count` steps equal `PulseId_RBV` steps between re-arms; the `REC`-stamp − counter-stamp distribution recorded with its max below `guard_ms`; `ACQ:Batched` stays 0. Repeat at 10 Hz when #54 opens. | Verdict in `docs/qualification/` |
 
-**Prerequisites for P6, from rfsoc4x2:** the board on its static IP with NTP (B2–B4), installed from a
-tagged bundle, on its DG645 output. P1–P5 need none of these.
+**Prerequisites for P6:**
+- **Met on the rfsoc4x2 side:** a fixed address, NTP to 10.0.0.1, hardening, a tagged install (`v0.1.1`), and the DG645 output. The board has already run 16 h gap-free at 2.5 Hz.
+- **Still open on the pegasus side:** the Arduino shot counter on PegasusControl (triage §5a item 1), checked to sit on the same DG645 T0 as the board.
+- P1–P5 need none of these.
 
-## 7. Decide before the first tag
+## 7. Decide before pegasus pins the names
 
-These are cheap to settle now and expensive after the registry and configs pin the names:
+Tags exist, but nothing in pegasus depends on these names yet, so they're still cheap to change: a
+new rfsoc tag, then a reinstall. After the registry and configs pin them, they get expensive:
 
 1. **The `_RBV` convention.** Pegasus marks read-back values `_RBV`. The BAM readbacks don't: `ACQ:Count`,
    `ACQ:Missed`, `ACQ:Rate`, `ACQ:Batched`, `CH<n>:I/Q`, `REC`, `INFO:*`. Either rename them in
@@ -114,9 +134,19 @@ These are cheap to settle now and expensive after the registry and configs pin t
 3. **Whether a site file may exist with no `start.ps1`.** If pegasus tooling assumes every site file is
    launched, keep the host facts in `network_config.md` and next to the copied `pvs.json` instead.
 
-## 8. Testing without the board
+## 8. Testing
 
-From a PC on loopback (`numpy` and `caproto` installed):
+**Against the real board** (read-only checks need nothing on the board side). Writes change the live
+acquisition, and any setpoint write re-arms, so leave setpoints alone unless the run owner agrees.
+
+```powershell
+$env:EPICS_CA_ADDR_LIST="10.0.0.27"; $env:EPICS_CA_AUTO_ADDR_LIST="NO"; $env:EPICS_CA_MAX_ARRAY_BYTES="1000000"
+python -m caproto.commandline.get PEGTEST:DIAG:BAM1:Version PEGTEST:DIAG:BAM1:ACQ:Rate PEGTEST:DIAG:BAM1:ACQ:Missed
+```
+
+Expect `v0.1.1`, ≈ 2.50 and 0.
+
+**Without the board**, from a PC on loopback (`numpy` and `caproto` installed):
 
 ```powershell
 $env:EPICS_CA_ADDR_LIST="127.0.0.1"; $env:EPICS_CA_AUTO_ADDR_LIST="NO"; $env:EPICS_CA_MAX_ARRAY_BYTES="1000000"
