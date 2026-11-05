@@ -171,7 +171,7 @@ class Ioc:
             raise CaprotoValueError(str(e)) from e
 
     async def poll(self):
-        t_rate, n_rate = time.time(), 0
+        t_tick, prev, last = time.time(), None, None        # (count, stamp) of the newest record, now and a tick ago
         while True:
             recs = self.d.poll()
             self.batched += max(len(recs) - 1, 0)
@@ -185,14 +185,24 @@ class Ioc:
                     await self.pv[f'CH{n}:I'].write(iq[n, 0].astype(np.int32), timestamp=ts)
                     await self.pv[f'CH{n}:Q'].write(iq[n, 1].astype(np.int32), timestamp=ts)
                 await self.pv['ACQ:Count'].write(count, timestamp=ts)
-            if time.time() - t_rate >= 1:
-                count = self.pv['ACQ:Count'].value
-                await self.pv['ACQ:Rate'].write((count - n_rate) / (time.time() - t_rate) if count >= n_rate else 0.0)
+                last = (count, ts)
+            if time.time() - t_tick >= 1:
+                await self.pv['ACQ:Rate'].write(rate(prev, last, time.time(), self.pv['ACQ:Rate'].value))
                 await self.pv['ACQ:Missed'].write(self.d.missed)
                 await self.pv['ACQ:Batched'].write(self.batched)
                 await self.pv['Heartbeat'].write(self.pv['Heartbeat'].value + 1)
-                t_rate, n_rate = time.time(), count
+                t_tick, prev = time.time(), last
             await asyncio.sleep(0.002)
+
+
+def rate(prev, last, now, old):
+    """Trigger rate between the newest records of two ticks, (count, stamp) each. Counting records per 1 s tick
+    instead reads 2 or 3 Hz at 2.5 Hz. 0 after 5 s without a record; unchanged when there's nothing new."""
+    if last is None or now - last[1] > 5:
+        return 0.0
+    if prev is None or last[0] <= prev[0] or last[1] <= prev[1]:     # nothing new, or a re-arm restarted the count
+        return old
+    return (last[0] - prev[0]) / (last[1] - prev[1])
 
 
 def pv_list():
@@ -256,6 +266,10 @@ def main(argv=None):
 
 
 def _check():
+    assert abs(rate((10, 100.0), (13, 101.2), 101.3, 0.0) - 2.5) < 1e-9   # 3 shots in 1.2 s, whatever the tick length
+    assert rate((10, 100.0), (10, 100.0), 101.0, 2.5) == 2.5           # no new record this tick: keep the value
+    assert rate((90, 100.0), (2, 101.0), 101.1, 2.5) == 2.5            # re-armed: count restarted
+    assert rate((10, 100.0), (12, 100.8), 106.0, 2.5) == 0.0           # trigger stopped
     assert PVS_JSON.read_bytes() == pv_list().encode(), "board/pvs.json is stale: python board/ioc.py --list-pvs > board/pvs.json"
     try:
         main(['--fake', '--prefix', 'PEG:DIAG:BAM1:'])
