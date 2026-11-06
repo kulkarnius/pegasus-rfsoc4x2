@@ -16,9 +16,10 @@ The IOC is `board/ioc.py`: Python, **caproto, CA only, no PVA**. It runs **on th
 systemd, because it drives the FPGA directly through QICK. Estimation (fits, phase) is not on the
 board. Analysis code reads the records.
 
-**Status (2026-11-05): live in production, commissioning prefix.** The board sits at its production
-location on 10.0.0.27 and runs **`v0.1.1`** under systemd as `PEGTEST:DIAG:BAM1:`. It's armed on the
-beamline DG645 trigger at 2.5 Hz.
+**Status (2026-11-05): live in production, production prefix.** The board sits at its production
+location on 10.0.0.27 and runs **`v0.1.1`** under systemd as **`PEG:DIAG:BAM1:`** (switched from
+`PEGTEST:DIAG:BAM1:` on 2026-11-05; the old prefix no longer answers). It's armed on the beamline
+DG645 trigger at 2.5 Hz.
 - **Gap-free run:** from 00:59:57 to 16:58 UTC, 15 h 58 min, `ACQ:Count` reached 143,692 against 143,700
   expected, with `ACQ:Missed` and `ACQ:Batched` both 0.
 - **Clock:** within 1 ms of 10.0.0.1 five minutes after boot, and 0.05 ms after 16 h.
@@ -37,7 +38,7 @@ differences are in the board's behaviour, not its PVs:
 | What | Owner | Where it lives | Check |
 |---|---|---|---|
 | PV leaf names, types, access, element counts | rfsoc4x2 (`board/ioc.py`) | `board/pvs.json`, generated from the dict the server serves. `ioc.py --check` fails if it's stale. | Pegasus copies it from a **tagged** rfsoc version, and its registry generator reads the copy (P2). |
-| PV prefix | pegasus (registry allocation) | Proposed `PEG:DIAG:BAM1:` (P2 decides). On the board it lives in `/etc/bam-ioc.env` as `BAM_PREFIX`; commissioning uses `PEGTEST:DIAG:BAM1:`, the same `PEG:=PEGTEST:` convention as #219. | `caget <prefix>Version` |
+| PV prefix | pegasus (registry allocation) | `PEG:DIAG:BAM1:` (allocated in P2, served since 2026-11-05). On the board it lives in `/etc/bam-ioc.env` as `BAM_PREFIX`; commissioning used `PEGTEST:DIAG:BAM1:`, the same `PEG:=PEGTEST:` convention as #219. | `caget <prefix>Version` |
 | Version | rfsoc4x2 | A git tag. `tools/bundle.py` stamps it into the bundle's `VERSION` file, and the IOC serves it as `Version` (plain string) and `BuildDate` (UTC ISO-8601). Outside a bundle it serves `dev`. | Pin the tag next to the copied `pvs.json`; preflight compares it with `caget …:Version`. |
 | `REC` layout | rfsoc4x2 | `INFO:RecFormat` (now `1`). Any layout change bumps it. The parser is `tools/record.py` in rfsoc4x2. | Record it as identity. |
 | Deployment | rfsoc4x2 | `peg-bam-ioc/<version>/` bundle with `MANIFEST.sha256`. `board/install.sh` installs it to `/opt/bam/<version>`, sets the `current` symlink and runs systemd `bam-ioc`; `--rollback` reverts. Setpoints persist in `/var/lib/bam-ioc/state.json`. | Pegasus does **not** build, install or start it. |
@@ -98,7 +99,7 @@ Every readback refuses client writes.
 | | |
 |---|---|
 | Host | RFSoC 4x2, PYNQ v3.0.1 (PynqLinux, Ubuntu 22.04, aarch64), hostname `pynq`. **10.0.0.27**: a DHCP reservation on 10.0.0.1 for MAC `fc:c2:3d:6f:3e:27` (rfsoc B2). The board may move later; the reservation is where the address changes. |
-| Installed | `/opt/bam/current` → `v0.1.1`; `previous` → `v0.1.0` (`sudo bash /opt/bam/…/board/install.sh --rollback`). Site values in `/etc/bam-ioc.env`: `BAM_PREFIX=PEGTEST:DIAG:BAM1:`, `BAM_IP=10.0.0.27`. Switching to production means editing `BAM_PREFIX` to `PEG:DIAG:BAM1:` and `sudo systemctl restart bam-ioc`, done by whoever holds the board's sudo password. |
+| Installed | `/opt/bam/current` → `v0.1.1`; `previous` → `v0.1.0` (`sudo bash /opt/bam/…/board/install.sh --rollback`). Site values in `/etc/bam-ioc.env`: `BAM_PREFIX=PEG:DIAG:BAM1:`, `BAM_IP=10.0.0.27`. Changing the prefix means editing `BAM_PREFIX` and `sudo systemctl restart bam-ioc`, done by whoever holds the board's sudo password. |
 | CA server | Port **5064** (the only IOC on that host, so no ladder rung). Bound to 10.0.0.27 (`EPICS_CAS_INTF_ADDR_LIST`), beacons to `10.0.0.255`. **No PVA.** |
 | Clients | The production env's `EPICS_CA_ADDR_LIST=10.0.0.255` broadcast already reaches port 5064. Add a unicast `10.0.0.27` entry if pegasus prefers explicit entries. |
 | Other services | Only SSH (22) and CA (5064) listen. Jupyter (ports 80, 9090) is masked; the PYNQ default password is changed. |
@@ -111,7 +112,7 @@ Every readback refuses client writes.
 |---|---|---|
 | P1 | **Issue + ADR 0017, "an IOC that runs on its instrument."** Record that the IOC's code, bundle and install live in rfsoc4x2, outside pegasus's bundle, install and supervisor system. Pegasus owns the name, the host facts and the recording, and its tests cover the copied `pvs.json`, the registry and the configs, never the IOC. Contrast with ADR 0010: the counter board's IOC runs on PegasusControl, while this is the first non-Windows IOC host. Add the RFSoC and the DG645 to `docs/planning/03_DEVICE_INVENTORY.md`, where the trigger source is `UNKNOWN`. Record in the triage doc §2 whether the BAM is in v1.0. | ADR merged, inventory rows in |
 | P2 | **Registry.** Allocate the prefix (proposed `PEG:DIAG:BAM1:`: a beam diagnostic, like `PEG:DIAG:ICT1:`, with `PEG:RF:` left to the LLRF IOC). Copy `pvs.json` in with its pinned tag (location is your call, e.g. `iocs/external/bam/`). Add `IocInfo("bam", ("PEG:DIAG:BAM1:",), <role>)` and a `parse_bam()` that maps the JSON to `PVEntry` (`double`→`ai`/`ao`, `long`→`longin`/`longout`, `enum`→`mbbi`/`mbbo`, `string`→`stringin`, `char`→`waveform`, waveforms by `count` > 1; record types are your convention to settle). Add a `pv_registry.md` section, then regenerate. | `python -m common.pv_registry check` and the T1 registry tests pass |
-| P3 | **Network and client env.** Host row in `docs/network_config.md` and in the README host diagram. Add `EPICS_CA_MAX_ARRAY_BYTES=1000000` to `config/epics_env.ps1` and `epics_env_test.ps1`. | `caget PEGTEST:DIAG:BAM1:REC` from PegasusControl and the workstation using only the repo's env scripts (the board is up, §8) |
+| P3 | **Network and client env.** Host row in `docs/network_config.md` and in the README host diagram. Add `EPICS_CA_MAX_ARRAY_BYTES=1000000` to `config/epics_env.ps1` and `epics_env_test.ps1`. | `caget PEG:DIAG:BAM1:REC` from PegasusControl and the workstation using only the repo's env scripts (the board is up, §8) |
 | P4 | **Aggregator channels** in the production configs (the `aggregator_hybrid_*.yaml` in use and `aggregator_pulse_id.yaml`). `REC` as `ca`, `class: fast`, identity `version: …:Version`, `build_date: …:BuildDate`, plus `firmware`/`rec_format` under extra. `ACQ:Count` as fast. `ACQ:Missed`, `ACQ:Batched`, `ACQ:Delay`, `ACQ:Length` and `CH<n>:Freq` as slow. Under ADR 0016, `REC` is an array channel with its own `Save:` enable once that lands. Comment the `ACQ:Length` rule. Add a T1 test that loads the configs (pattern: `tests/unit/test_aggregator_pulse_id_config.py`). | T1/T2 green |
 | P5 | **T3.** If the simulated stack has no CA integer-array fast channel, add a fake `REC` there. Don't make T3 depend on rfsoc4x2. | T3 covers a fast CA array end to end |
 | P6 | **T4 acceptance** on PegasusControl: board, Arduino shot counter, DG645 at 2.5 Hz, 1 h, `shot_id_source: external_pulse_id`. Checks: no BAM INCOMPLETE shots; `ACQ:Count` steps equal `PulseId_RBV` steps between re-arms; the `REC`-stamp − counter-stamp distribution recorded with its max below `guard_ms`; `ACQ:Batched` stays 0. Repeat at 10 Hz when #54 opens. | Verdict in `docs/qualification/` |
@@ -141,7 +142,7 @@ acquisition, and any setpoint write re-arms, so leave setpoints alone unless the
 
 ```powershell
 $env:EPICS_CA_ADDR_LIST="10.0.0.27"; $env:EPICS_CA_AUTO_ADDR_LIST="NO"; $env:EPICS_CA_MAX_ARRAY_BYTES="1000000"
-python -m caproto.commandline.get PEGTEST:DIAG:BAM1:Version PEGTEST:DIAG:BAM1:ACQ:Rate PEGTEST:DIAG:BAM1:ACQ:Missed
+python -m caproto.commandline.get PEG:DIAG:BAM1:Version PEG:DIAG:BAM1:ACQ:Rate PEG:DIAG:BAM1:ACQ:Missed
 ```
 
 Expect `v0.1.1`, ≈ 2.50 and 0.
