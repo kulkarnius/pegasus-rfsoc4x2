@@ -4,6 +4,7 @@
     python tools/record.py grab 20 out/ [--prefix BAM:RFSOC:]   # 20 records from the IOC -> out/rec_<count>.csv
     python tools/record.py grab 300 s_band/ --split 0,1          # readouts 0, 1 as [t, ch1, ch2] (PLAN S)
     python tools/record.py grab 300 s_band/ --split 0,1 --iq-only   # only s_band/iq/, for long records
+    python tools/record.py log recs/scan1 [--prefix P]  # every record, raw + timestamps, until Ctrl-C (load())
 
 A record is the int32 `REC` waveform from board/ioc.py, one shot, all channels:
     [count, L, n_ch, delay_ns, fs_dec_kHz, f_kHz * n_ch, then I[L], Q[L] per channel]
@@ -98,6 +99,70 @@ def grab(n, out, prefix='BAM:RFSOC:', split=None, iq_only=False):
             n -= 1
 
 
+def log(out, prefix='PEG:DIAG:BAM1:'):
+    """Save every REC until Ctrl-C, raw, for a run whose other data lives elsewhere (LabVIEW) and is
+    resynced later. Each record goes to out/<seq>.npy as it arrives. One line per record goes to
+    out/index.csv (seq, count, board_ts, pc_ts). board_ts is the IOC's stamp (board clock, synced to
+    10.0.0.1), and pc_ts is this PC's receive time. out/meta.txt holds this PC's offset from 10.0.0.1.
+    seq is monotonic. count restarts on every arm (any setpoint write), so a gap in count within one
+    arm is a missed shot."""
+    import os, pathlib, queue, subprocess, time
+    for k, v in [('EPICS_CA_ADDR_LIST', '10.0.0.27'), ('EPICS_CA_AUTO_ADDR_LIST', 'NO'),
+                 ('EPICS_CA_MAX_ARRAY_BYTES', '1000000')]:
+        os.environ.setdefault(k, v)                             # before caproto reads them
+    from caproto.threading.client import Context
+    out = pathlib.Path(out)
+    out.mkdir(parents=True, exist_ok=False)                     # never append to an old run
+    try:
+        ntp = subprocess.run(['w32tm', '/stripchart', '/computer:10.0.0.1', '/samples:1', '/dataonly'],
+                             capture_output=True, text=True, timeout=10).stdout
+    except Exception as e:
+        ntp = repr(e)
+    (out / 'meta.txt').write_text(f"prefix {prefix}\nstart_pc {time.time():.6f}\n"
+                                  f"w32tm offset of 10.0.0.1 from this PC (+ = PC behind):\n{ntp}")
+    pv, = Context().get_pvs(prefix + 'REC', timeout=5)
+    q = queue.Queue()
+    put = lambda sub, resp: q.put((resp.metadata.timestamp, time.time(), resp.data.copy()))  # held weakly: keep the name
+    sub = pv.subscribe(data_type='time')
+    sub.add_callback(put)
+    q.get(timeout=10)                   # the monitor opens with the current value, already saved or stale
+    seq, last, t_print = 0, None, 0
+    print(f"logging {prefix}REC -> {out}   Ctrl-C to stop")
+    with open(out / 'index.csv', 'w') as idx:
+        idx.write('seq,count,board_ts,pc_ts\n')
+        try:
+            while True:
+                try:
+                    ts, pc, rec = q.get(timeout=0.5)            # a timeout so Ctrl-C gets through on Windows
+                except queue.Empty:
+                    continue
+                if len(rec) <= HDR:                             # the IOC's 1-element placeholder
+                    continue
+                count = int(rec[0])
+                if last is not None and count != last + 1:
+                    print(f"  count {last} -> {count}: " + ('re-armed' if count < last else f'{count - last - 1} missed'))
+                np.save(out / f'{seq:06d}.npy', rec)
+                idx.write(f'{seq},{count},{ts:.6f},{pc:.6f}\n')
+                idx.flush()
+                seq, last = seq + 1, count
+                if pc - t_print > 10:
+                    print(f"  {seq} records, count {count}, L {rec[1]}")
+                    t_print = pc
+        except KeyboardInterrupt:
+            pass
+    sub.clear()
+    print(f"stopped: {seq} records in {out}")
+
+
+def load(run):
+    """A log() run -> (index rows as a structured array, list of parsed records), in seq order."""
+    import pathlib
+    run = pathlib.Path(run)
+    idx = np.genfromtxt(run / 'index.csv', delimiter=',', names=True, dtype=None)
+    idx = np.atleast_1d(idx)
+    return idx, [parse(np.load(run / f'{s:06d}.npy')) for s in idx['seq']]
+
+
 def _check():
     """A Gaussian-envelope tone at the cavity frequency, as an ideal DDC would deliver it, rebuilds to
     the true RF waveform in zone 3 of the QICK ADC rate, and a pd-like baseband pulse at f = 0."""
@@ -116,11 +181,20 @@ def _check():
         assert split_csv(r, 0, 0).shape == ((L - 2 * EDGE) * 15, 3)
         s, z = split_csv(r, 0, 0), split_iq(r, 0, 0)
         assert np.isclose(s[0, 0], z[0, 0]) and np.isclose(s[15, 0], z[1, 0])    # same time grid, every 15th row
+    import pathlib, tempfile                                    # load() reads what log() writes
+    with tempfile.TemporaryDirectory() as d:
+        np.save(pathlib.Path(d) / '000000.npy', rec.astype(np.int32))
+        (pathlib.Path(d) / 'index.csv').write_text('seq,count,board_ts,pc_ts\n0,7,1.5,1.25\n')
+        idx, rs = load(d)
+        assert idx['count'][0] == 7 and idx['board_ts'][0] == 1.5 and np.array_equal(rs[0]['iq'], r['iq'])
     print("record.py self-check OK")
 
 
 if __name__ == "__main__":
-    if sys.argv[1:2] == ['grab']:
+    if sys.argv[1:2] == ['log']:
+        a = sys.argv[2:]
+        log(a[0], *a[a.index('--prefix') + 1:][:1])
+    elif sys.argv[1:2] == ['grab']:
         a = sys.argv[2:]
         opt = lambda k: a[a.index(k) + 1] if k in a else None
         split = opt('--split')
