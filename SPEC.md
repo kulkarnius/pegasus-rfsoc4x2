@@ -492,8 +492,10 @@ So the BAM pair (master, cavity) goes on D and C, and the photodiode on B.
 
 Not yet verified:
 - The SMA map above with a signal on each SMA (PLAN G2). Loopback so far (2026-11-03): gen 1 drives
-  DAC A, and a tone split into ADC D + C reaches readouts 0 and 1 but not 2. D vs C individually is
-  still QICK's label.
+  DAC A, and a tone split into ADC D + C reaches readouts 0 and 1 but not 2. **D confirmed
+  2026-11-06:** the beam cavity signal cabled to ADC D alone appears on readout 0 only (both at
+  4758.4 MHz; readout 1 stays at the noise floor). **C and B confirmed the same day:** two BPM
+  electrodes cabled to ADC C and ADC B appear on readouts 1 and 2, all three readouts at 4758.4 MHz.
 - Readout 2 goes through `axis_weighted_buffer`, which has a triggered I/Q buffer. Per-shot dumps from it are untried.
 - The shaped photodiode pulse fits the readout passband (check with `eo_comb_readout_validation.m`).
 

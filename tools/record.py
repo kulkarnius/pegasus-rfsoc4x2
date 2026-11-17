@@ -193,7 +193,7 @@ def _check():
 if __name__ == "__main__":
     if sys.argv[1:2] == ['log']:
         a = sys.argv[2:]
-        log(a[0], *a[a.index('--prefix') + 1:][:1])
+        log(a[0], *a[a.index('--prefix') + 1:][:1] if '--prefix' in a else [])
     elif sys.argv[1:2] == ['grab']:
         a = sys.argv[2:]
         opt = lambda k: a[a.index(k) + 1] if k in a else None
