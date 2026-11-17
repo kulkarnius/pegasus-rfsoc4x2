@@ -9,7 +9,8 @@ work from it alone. Follow that repo's own `CLAUDE.md` (worktree, papercuts, T1/
 
 A RealDigital RFSoC 4x2 that replaces a 20 GS/s scope on the BAM (beam arrival monitor) cavity. On each
 trigger it captures one window from 3 ADC readouts (master 2856 MHz, cavity 4758.4 MHz, photodiode)
-as decimated I/Q at 552.96 MS/s, and it can play 2 DAC outputs. It runs PYNQ v3.0.1 (Linux, aarch64)
+as decimated I/Q at 491.52 MS/s (552.96 before v0.2.0; `INFO:FsDec` and the `REC` header carry it), and it can
+play 2 DAC outputs. It runs PYNQ v3.0.1 (Linux, aarch64)
 with the stock QICK tProc-v2 firmware.
 
 The IOC is `board/ioc.py`: Python, **caproto, CA only, no PVA**. It runs **on the board** under
@@ -27,8 +28,11 @@ DG645 trigger at 2.5 Hz.
   are noise until the master and cavity are cabled. The shot counter isn't on PegasusControl yet (P6).
 - **Testing:** P1–P5 can be tested against the real board now, not only `ioc.py --fake` (§8).
 
-**Pin `v0.1.1`** (tag at commit `6ee3326`). Its `pvs.json` is byte-identical to `v0.1.0`'s. The
-differences are in the board's behaviour, not its PVs:
+**Pin `v0.2.0`** (tag at commit `d020a25`, installed 2026-11-17). Its `pvs.json` is byte-identical to
+`v0.1.1`'s and `v0.1.0`'s. v0.2.0 moves the ADC rate from 4423.68 to 3932.16 MS/s (`BAM_ADC_FS` in
+`/etc/bam-ioc.env`, rfsoc4x2 FREQ_PLAN.md): `INFO:FsDec` reads **491.52** instead of 552.96, so a record of
+`ACQ:Length` samples spans L / 491.52 MHz. Consumers must take the sample spacing from `INFO:FsDec` or the `REC`
+header, not a constant. v0.1.1's differences from v0.1.0, also in the board's behaviour, not its PVs:
 - `ACQ:Rate` is computed from record timestamps; `v0.1.0` read 2–3 Hz at 2.5 Hz.
 - timesyncd polls at most every 64 s.
 - Jupyter is masked by the install.
@@ -99,7 +103,7 @@ Every readback refuses client writes.
 | | |
 |---|---|
 | Host | RFSoC 4x2, PYNQ v3.0.1 (PynqLinux, Ubuntu 22.04, aarch64), hostname `pynq`. **10.0.0.27**: a DHCP reservation on 10.0.0.1 for MAC `fc:c2:3d:6f:3e:27` (rfsoc B2). The board may move later; the reservation is where the address changes. |
-| Installed | `/opt/bam/current` → `v0.1.1`; `previous` → `v0.1.0` (`sudo bash /opt/bam/…/board/install.sh --rollback`). Site values in `/etc/bam-ioc.env`: `BAM_PREFIX=PEG:DIAG:BAM1:`, `BAM_IP=10.0.0.27`. Changing the prefix means editing `BAM_PREFIX` and `sudo systemctl restart bam-ioc`, done by whoever holds the board's sudo password. |
+| Installed | `/opt/bam/current` → `v0.2.0`; `previous` → `v0.1.1` (`sudo bash /opt/bam/…/board/install.sh --rollback`). Site values in `/etc/bam-ioc.env`: `BAM_PREFIX=PEG:DIAG:BAM1:`, `BAM_IP=10.0.0.27`, `BAM_ADC_FS=3932.16` (delete the line and restart for the bitstream's 4423.68). Changing the prefix means editing `BAM_PREFIX` and `sudo systemctl restart bam-ioc`, done by whoever holds the board's sudo password. |
 | CA server | Port **5064** (the only IOC on that host, so no ladder rung). Bound to 10.0.0.27 (`EPICS_CAS_INTF_ADDR_LIST`), beacons to `10.0.0.255`. **No PVA.** |
 | Clients | The production env's `EPICS_CA_ADDR_LIST=10.0.0.255` broadcast already reaches port 5064. Add a unicast `10.0.0.27` entry if pegasus prefers explicit entries. |
 | Other services | Only SSH (22) and CA (5064) listen. Jupyter (ports 80, 9090) is masked; the PYNQ default password is changed. |
@@ -145,7 +149,7 @@ $env:EPICS_CA_ADDR_LIST="10.0.0.27"; $env:EPICS_CA_AUTO_ADDR_LIST="NO"; $env:EPI
 python -m caproto.commandline.get PEG:DIAG:BAM1:Version PEG:DIAG:BAM1:ACQ:Rate PEG:DIAG:BAM1:ACQ:Missed
 ```
 
-Expect `v0.1.1`, ≈ 2.50 and 0.
+Expect `v0.2.0`, ≈ 2.50 and 0.
 
 **Without the board**, from a PC on loopback (`numpy` and `caproto` installed):
 
