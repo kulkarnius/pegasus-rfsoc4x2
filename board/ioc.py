@@ -21,6 +21,8 @@ INFO:RecFormat (REC layout number), and ACQ:Batched: records that arrived more t
                    write and reload them at start, re-arming if it was armed. A bad file means defaults.
     --list-pvs     print the served PVs as JSON (board/pvs.json) and exit; needs no --bit/--fake.
     --check        self-check. --fake refuses a PEG: prefix (production names); PEGTEST: is fine.
+    --adc-fs MS/S  ADC sample rate (default: $BAM_ADC_FS from /etc/bam-ioc.env, else the bitstream's 4423.68).
+                   INFO:FsDec (= fs/8) and the REC header follow it.
 
 ponytail: a re-arm (compile + envelope DMA) runs inside the server loop, so every client stalls for
 it. Fine at v1 setpoint rates; move it to an executor if that ever shows.
@@ -229,6 +231,8 @@ def main(argv=None):
     ap.add_argument('--prefix', default='BAM:RFSOC:')
     ap.add_argument('--interfaces', nargs='+', default=['0.0.0.0'])
     ap.add_argument('--state', help="JSON file for the setpoints and armed flag, kept across restarts")
+    ap.add_argument('--adc-fs', type=float, default=os.environ.get('BAM_ADC_FS') or None,
+                    help="ADC sample rate, MS/s (default $BAM_ADC_FS, else the bitstream's; FREQ_PLAN.md: 3932.16)")
     ap.add_argument('--list-pvs', action='store_true', help="print the served PVs as JSON and exit")
     ap.add_argument('--check', action='store_true', help="self-check and exit")
     a = ap.parse_args(argv)
@@ -250,7 +254,7 @@ def main(argv=None):
         import qick
         sha = hashlib.sha256(Path(a.bit).read_bytes()).hexdigest()
         info.update({'INFO:Firmware': f"{Path(a.bit).name} sha256:{sha}", 'INFO:Qick': qick.__version__})
-    ioc = Ioc(daq.FakeDaq() if a.fake else daq.Daq(a.bit), a.prefix, info, a.state)
+    ioc = Ioc(daq.FakeDaq(adc_fs=a.adc_fs) if a.fake else daq.Daq(a.bit, a.adc_fs), a.prefix, info, a.state)
 
     async def start(async_lib):
         if ioc.armed0:

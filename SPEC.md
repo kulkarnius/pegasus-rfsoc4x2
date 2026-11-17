@@ -276,6 +276,8 @@ configuration.
 
 ## 5. Frequency plan
 
+> **Proposed revision (2026-11-17), not yet adopted:** [FREQ_PLAN.md](FREQ_PLAN.md). Beam data show a broadband prompt band (≈ 3.7–5.3 GHz through the ZX75BP-4700's skirts) that folds onto the cavity line at QICK's 4423.68 MS/s and, in raw records, below 4.4 GHz at 4046 MS/s. It proposes 3932.16 MS/s under QICK now (a QICK runtime setting, no new firmware) and 3689 MS/s for the custom overlay.
+
 `python tools/freqplan.py adc|dac` ranks the sample rates on the 119 MHz grid. Its score is the
 worst-case spacing between the aliases of 2856, the cavity f0 and their low harmonics, and between those
 aliases and DC, fs/2 and **fs/4**. The fs/4 keep-out is deliberate: interleaving spurs and DDC images

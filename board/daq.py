@@ -99,10 +99,15 @@ def build(soccfg, cfg):
 
 
 class Daq:
-    def __init__(self, bitfile):
+    def __init__(self, bitfile, adc_fs=None):
+        """adc_fs: ADC sample rate in MS/s, None for the build rate (FREQ_PLAN.md: 3932.16). Both ADC tiles share
+        one clock group, so both move; QICK accepts only lower rates its tile PLL can make (valid_sample_rates)."""
         from qick import QickSoc
-        self.soc = QickSoc(bitfile)         # the tProc-v2 build; QickSoc()'s default is the 2-readout v1 one
+        rates = {0: adc_fs, 2: adc_fs} if adc_fs else None
+        self.soc = QickSoc(bitfile, adc_sample_rates=rates)     # the tProc-v2 build; QickSoc()'s default is the 2-readout v1 one
         ro = self.soc['readouts'][:N_RO]
+        if adc_fs and abs(ro[0]['fs'] - adc_fs) > 0.01:          # QICK rounds to the nearest valid rate, warning only
+            raise ValueError(f"ADC rate {adc_fs} MS/s not available; nearest {ro[0]['fs']}")
         self.fs_dec = ro[0]['f_output']                 # MHz
         self.buf_len = min(r['buf_maxlen'] for r in ro)
         self.env_len = min(g['maxlen'] for g in self.soc['gens'][:N_GEN])
@@ -148,9 +153,10 @@ class Daq:
 
 class FakeDaq:
     """PC stand-in with the stock firmware's limits: a 10 Hz shot of noisy ringdowns."""
-    fs_dec, buf_len, env_len = 552.96, 16384, 65536
+    buf_len, env_len = 16384, 65536
 
-    def __init__(self, bitfile=None):
+    def __init__(self, bitfile=None, adc_fs=None):
+        self.fs_dec = (adc_fs or 4423.68) / 8           # the readouts decimate by 8
         self.armed, self.missed, self.n, self.t = False, 0, 0, time.time()
 
     def arm(self, cfg):
@@ -198,6 +204,7 @@ def _check():
     assert [r[0] for r in d.poll()] == [17]
     assert d.soc.reads == [(0, 4096), (1, 4096), (2, 0)]   # s=16: ch0/1 at 4096, ch2 wrapped to 0
     assert [r[0] for r in d.poll()] == list(range(22, 37)) and d.missed == 5   # 19 new: 3 overrun + 1 at risk
+    assert FakeDaq().fs_dec == 552.96 and FakeDaq(adc_fs=3932.16).fs_dec == 491.52     # build rate, FREQ_PLAN rate
     print("daq.py self-check OK")
 
 
