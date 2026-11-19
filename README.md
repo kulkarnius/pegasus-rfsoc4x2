@@ -17,11 +17,12 @@ linac. Its first job is to replace the 20 GS/s scope that digitizes the BAM cavi
 
 ## Status (2026-11-19)
 
-- **Running in production** as `PEG:DIAG:BAM1:` (v0.2.0, deployed 2026-11-17): stock QICK tProc-v2
+- **Running in production** as `PEG:DIAG:BAM1:` (v0.3.0, deployed 2026-11-19; v0.2.0 before): stock QICK tProc-v2
   firmware on PYNQ v3.0.1, ADC at **3932.16 MS/s** ([FREQ_PLAN.md](FREQ_PLAN.md) Stage 1), caproto
   EPICS IOC under systemd, triggered by the beamline DG645 at 2.5 Hz. An overnight run (2026-11-05, 143,692 shots) missed none.
-- **Soft trigger** (`ACQ:Source soft`, not yet in a release bundle): verified on the bench 2026-11-19
-  (20 Hz, no trigger cable, counts contiguous, `Missed` 0).
+- **Soft trigger** (`ACQ:Source soft`, in v0.3.0): verified on the bench 2026-11-19
+  (20 Hz, no trigger cable, counts contiguous, `Missed` 0). After the v0.3.0 install the board re-armed on
+  `external` at 2.50 Hz with `Missed` 0.
 - **File playback** (`env`/`raw`): burst timing and length verified on the bench 2026-11-19 (PLAN G7,
   partial). The DDC frequency/phase sign across Nyquist zones and the fine step response are still open.
 - **Open:** the custom overlay rate (4046 vs 3689 MS/s, FREQ_PLAN Q5), locking to the linac master
@@ -114,6 +115,9 @@ python -m caproto.commandline.put BAM:RFSOC:ACQ:Arm On
 python tools/record.py grab 10 recs/
 ```
 
+`grab` defaults to the fake IOC's `BAM:RFSOC:` prefix. Against the real board add `--prefix PEG:DIAG:BAM1:`
+(with `EPICS_CA_ADDR_LIST=10.0.0.27`); without it the search never answers and `grab` waits forever.
+
 On the board by hand: `sudo python3 board/ioc.py --bit <qick tProc-v2 4x2 .bit> --adc-fs 3932.16` (PLAN F1
 for the file). In production `bam-ioc.service` runs it with the values in `/etc/bam-ioc.env`.
 
@@ -186,7 +190,7 @@ script, add `set_param board.repoPaths <repo>/boards` (absolute path, forward sl
 
 ## Key numbers
 
-As deployed (v0.2.0, stock QICK tProc-v2; SPEC §8). SPEC §4/§5 hold the custom-overlay design
+As deployed (v0.3.0, stock QICK tProc-v2; SPEC §8). SPEC §4/§5 hold the custom-overlay design
 (119 MHz reference into CLK IN, 4046/8092 MS/s), which is not built.
 
 | | |

@@ -106,7 +106,7 @@ Every readback refuses client writes.
 | | |
 |---|---|
 | Host | RFSoC 4x2, PYNQ v3.0.1 (PynqLinux, Ubuntu 22.04, aarch64), hostname `pynq`. **10.0.0.27**: a DHCP reservation on 10.0.0.1 for MAC `fc:c2:3d:6f:3e:27` (rfsoc B2). The board may move later; the reservation is where the address changes. |
-| Installed | `/opt/bam/current` → `v0.2.0`; `previous` → `v0.1.1` (`sudo bash /opt/bam/…/board/install.sh --rollback`). Site values in `/etc/bam-ioc.env`: `BAM_PREFIX=PEG:DIAG:BAM1:`, `BAM_IP=10.0.0.27`, `BAM_ADC_FS=3932.16` (delete the line and restart for the bitstream's 4423.68). Changing the prefix means editing `BAM_PREFIX` and `sudo systemctl restart bam-ioc`, done by whoever holds the board's sudo password. |
+| Installed | `/opt/bam/current` → `v0.3.0` (2026-11-19); `previous` → `v0.2.0` (`sudo bash /opt/bam/…/board/install.sh --rollback`). Site values in `/etc/bam-ioc.env`: `BAM_PREFIX=PEG:DIAG:BAM1:`, `BAM_IP=10.0.0.27`, `BAM_ADC_FS=3932.16` (delete the line and restart for the bitstream's 4423.68). Changing the prefix means editing `BAM_PREFIX` and `sudo systemctl restart bam-ioc`, done by whoever holds the board's sudo password. |
 | CA server | Port **5064** (the only IOC on that host, so no ladder rung). Bound to 10.0.0.27 (`EPICS_CAS_INTF_ADDR_LIST`), beacons to `10.0.0.255`. **No PVA.** |
 | Clients | The production env's `EPICS_CA_ADDR_LIST=10.0.0.255` broadcast already reaches port 5064. Add a unicast `10.0.0.27` entry if pegasus prefers explicit entries. |
 | Other services | Only SSH (22) and CA (5064) listen. Jupyter (ports 80, 9090) is masked; the PYNQ default password is changed. |
@@ -152,7 +152,7 @@ $env:EPICS_CA_ADDR_LIST="10.0.0.27"; $env:EPICS_CA_AUTO_ADDR_LIST="NO"; $env:EPI
 python -m caproto.commandline.get PEG:DIAG:BAM1:Version PEG:DIAG:BAM1:ACQ:Rate PEG:DIAG:BAM1:ACQ:Missed
 ```
 
-Expect `v0.2.0`, ≈ 2.50 and 0.
+Expect `v0.3.0`, ≈ 2.50 and 0.
 
 **Without the board**, from a PC on loopback (`numpy` and `caproto` installed):
 
