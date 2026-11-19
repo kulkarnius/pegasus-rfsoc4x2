@@ -28,7 +28,7 @@ DG645 trigger at 2.5 Hz.
   are noise until the master and cavity are cabled. The shot counter isn't on PegasusControl yet (P6).
 - **Testing:** P1–P5 can be tested against the real board now, not only `ioc.py --fake` (§8).
 
-**Pin `v0.2.0`** (tag at commit `d020a25`, installed 2026-11-17). Its `pvs.json` is byte-identical to
+**Pin `v0.2.0`** (tag at commit `e749ad0` since the 2026-11-19 history rewrite, `d020a25` before; installed 2026-11-17). Its `pvs.json` is byte-identical to
 `v0.1.1`'s and `v0.1.0`'s. v0.2.0 moves the ADC rate from 4423.68 to 3932.16 MS/s (`BAM_ADC_FS` in
 `/etc/bam-ioc.env`, rfsoc4x2 FREQ_PLAN.md): `INFO:FsDec` reads **491.52** instead of 552.96, so a record of
 `ACQ:Length` samples spans L / 491.52 MHz. Consumers must take the sample spacing from `INFO:FsDec` or the `REC`

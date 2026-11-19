@@ -119,9 +119,9 @@ for the file). In production `bam-ioc.service` runs it with the values in `/etc/
 
 ### Loopback without a trigger cable (soft trigger)
 
-`ACQ:Source soft` makes the board fire its own shots at `ACQ:SoftRate` Hz (default 10, max 1000).
-The default, `external`, waits for the TTL on PMOD1_0, so production is unchanged. Shots then land at a
-random time against anything outside the board. Cable DAC A → ADC D (≲ 600 MHz, see papercuts), then:
+`ACQ:Source soft` makes the board fire its own shots at `ACQ:SoftRate` Hz (default 10, max 1000), at a
+random time against anything outside the board. The default, `external`, waits for the TTL on PMOD1_0,
+so production is unchanged. Cable DAC A → ADC D (≲ 600 MHz, see papercuts), then:
 
 ```bash
 python -m caproto.commandline.put BAM:RFSOC:AWG1:Freq 600
@@ -144,7 +144,8 @@ Verified on the bench 2026-11-19 (`tools/board_soft_test.py`: 20 Hz, 20 records 
 - `env`: the arrays are the complex envelope × `AWG<m>:Gain`, on an NCO carrier at `AWG<m>:Freq` MHz.
   QICK's product path plays at **half** the amplitude of `raw`/`cw` for the same `I` × `Gain`
   (measured −5.8 dB), so `env` tops out at −6 dBFS (I = 1, Gain = 1).
-- `raw`: `I` is the DAC sample stream itself (put the carrier in yourself); full scale is reachable.
+- `raw`: `I` × `AWG<m>:Gain` is the DAC sample stream itself (put the carrier in yourself); full scale
+  at I = ±1, Gain = 1. `Gain` defaults to 0.5 in every mode.
 
 Write the arrays first, then the mode (`env`/`raw` refuse an empty `I`). Clients need
 `EPICS_CA_MAX_ARRAY_BYTES=1000000` or more:
