@@ -369,7 +369,7 @@ scope"). The board beats the scope for the BAM if its floor sits well under the 
 | G4 | The dmem counter tracks 10⁴ edges with no reset. | Counter = edges sent |
 | G5 | Ring: at depth K, send 3K shots at a rising rate; the host reads all of them. Record the highest gap-free rate. | ≥ machine rep rate |
 | G6 | Trigger → window and trigger → DAC spread over 10⁴ triggers (DAC → ADC loopback at ≲ 600 MHz, papercuts). | Number recorded in R4 |
-| G7 | DDC conventions: a known tone in zones 1–3; `record.py` rebuilds the right frequency and phase sign. | Matches |
+| G7 | DDC conventions: a known tone in zones 1–3; `record.py` rebuilds the right frequency and phase sign. | Matches. **Partial 2026-11-19** (burst timing and levels, see B bench results); zone/phase sign and the fine step response open. |
 | G8 | AWG modes (CW, raw, envelope) at 2856 and 4758 MHz on an analyzer or an ADC. | R2 |
 
 ## H. PVs (v1)
@@ -382,6 +382,7 @@ pin 0–7.
 | `ACQ:Arm` | enum Off/On | Arm / disarm. While armed, every setpoint write re-arms at once. |
 | `ACQ:Delay` | double, us | Trigger → window start, after the fixed `INFO:T0` |
 | `ACQ:Length` | long | Record length, 16–8192 decimated samples (half the 16384 buffer), power of 2 |
+| `ACQ:Source`, `ACQ:SoftRate` | enum external/soft, double Hz | Trigger source. `soft`: the host restarts the program every 1/SoftRate s (≤ 1000 Hz), no cable; bench only. Default `external`. |
 | `ACQ:Count`, `ACQ:Missed` | long | Shot counter (restarts at 1 on arm); gaps + ring overruns |
 | `ACQ:Rate` | double, Hz | Measured trigger rate |
 | `CH<n>:Freq` | double, MHz | Readout NCO, as the true RF frequency |
@@ -531,6 +532,11 @@ One plan, here, in two parts. **Code and config land in the repo that owns them:
   - Repeated at 3113 MHz (DAC images and harmonics fold ≥ 491 MHz from the tone; at 4758.4 the image folds 21 MHz away): `recs/dac_ringdown_3113/` both scans, not yet analysed. Next: ~200 shots at one pad, a rise ladder, a full-rate capture through `mr_buf` (no decimation), and locking the board clock to the linac master.
   - **Setpoints restored for beam:** `CH0–2:Freq` 4758.4, `ACQ:Length` 256, `ACQ:Delay` 3.3, AWG0/1 off, armed at 2.50 Hz.
 - **ADC rate 4423.68 → 3932.16 MS/s, v0.2.0, 2026-11-17** (FREQ_PLAN.md: the beam's prompt band folded onto the cavity line). Loopback first (E2): a 4100 MHz DAC tone that folded in 3 dB above an in-band tone at 4423.68 is 43 dB below it at 3932.16. Then v0.2.0 was installed with `BAM_ADC_FS=3932.16` (E3): `Version` v0.2.0, `INFO:FsDec` 491.52, armed at 2.50 Hz, `Missed` 0, setpoints kept. Records are now 2.035 ns per sample; the lbnl-cavity scripts' `DTF` must follow (FREQ_PLAN E6). Next: E4 bench checks, then E5 on beam.
+- **Soft trigger and file playback, 2026-11-19** (`tools/board_soft_test.py`, `bam-ioc` stopped, ADC at 3932.16 MS/s, DAC A → ADC D direct cable, no attenuator):
+  - **Soft trigger verified:** `ACQ:Source soft` at 20 Hz, no trigger cable: 20 records in 0.99 s (20.3 Hz), counts 1..20 contiguous, `Missed` 0. CW 600 MHz at gain 0.5 reads −30.5 dBFS on readout 0 (`SOFT_OK`).
+  - **G7, partial (timing and level):** a 1 µs burst (9830 samples) on AWG1, `AWG1:Delay` 1.0 µs, `ACQ:Delay` 0, L = 2048. `env` (I = 0.5 rectangle, gain 1, 600 MHz carrier): above half max from 1.322 to 2.321 µs after window start, peak −36.2 dBFS. `raw` (I = 0.5·cos(2π·600 MHz·t)): 1.322 to 2.319 µs, peak −30.4 dBFS. So the burst length is right to one readout sample, `env` and `raw` land on the same sample, the DAC → ADC path adds ≈ 0.32 µs against the readout trigger, the edges are inside one 0.13 µs bin, and the floor outside the burst is −85 dBFS.
+  - **`env` plays at half amplitude (−5.8 dB) against `raw`/`cw` for the same nominal value.** Cause: QICK's generator convention. The 'product' path (envelope × DDS, used by `env`) of `axis_signal_gen_v6` comes out at half the amplitude of the 'dds' (cw/const) and 'input' (raw) paths for the same gain; qick 0.2.442 `asm_v2.py` relies on it (a flat_top's flat segment plays at half gain to match the ramps). So `env` tops out at −6 dBFS (I = 1, Gain = 1); use `raw` or `cw` for full scale. Not rescaled in software, so `Gain` ≤ 1 means the same in every mode (comment in `daq.build`).
+  - Still open from G7: the DDC frequency and phase sign across Nyquist zones, and the fine step response (needs finer than 0.13 µs bins).
 - **Not yet run on the board:** a reboot that re-arms from an armed `state.json`, and `--rollback`.
   - `--rollback` with no previous install fails without a clear message.
   - If `pip` fails after the copy, delete `/opt/bam/<version>` before rerunning.

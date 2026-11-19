@@ -12,7 +12,7 @@ These came from the user and override anything that seems to suggest otherwise.
 
 | Directive | Consequence |
 |---|---|
-| Estimation is done: "these calculations have been done". The estimator, CRLB and jitter analysis live in the BAM Sims analysis folder (separate from this repo). | Don't write estimator code. The board's job is to deliver records that code consumes unchanged (SPEC R5, §7). |
+| Estimation is done: "these calculations have been done". The estimator, CRLB and jitter analysis live in the BAM Sims analysis folder (separate from this repo, `LBNL Cavity\BAM\Sims`). | Don't write estimator code. The board's job is to deliver records that code consumes unchanged (SPEC R5, §7). |
 | Records should look like a scope's: a time array, a clock (reference) array, a signal array. | SPEC §7 record format: `t`, `ref`, `sig`, `pd`, `trig`, `scale`. |
 | Estimation is an MLE / least-squares fit, which sidesteps the t0 image-correction issue. "Don't worry about it for now." | t0 / image correction is not in the spec. |
 | Hold the slow zero-crossing tracking loop: "not immediately important". | Listed as out of scope (SPEC §11). |

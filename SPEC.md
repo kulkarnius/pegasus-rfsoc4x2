@@ -30,7 +30,7 @@ Key frequencies:
   - Any f0/master ratio must use the measured values of both.
 
 **Prior work.** The estimator, its CRLB, and the scope-based jitter analysis (TDS6804B at 20 GS/s)
-already exist in the BAM Sims analysis folder (separate from this repo).
+already exist in the BAM Sims analysis folder (separate from this repo, `LBNL Cavity\BAM\Sims`).
 
 - Key files: `bam_constants.m`, `crlb_derivation.md`, `crlb_decaying_sinusoid.md`,
   `tds6804b_phase_limit.md`, `snr_vs_charge.m`, `estimate_phase_mf2.m` / `mf2_design.m` (the
@@ -187,7 +187,7 @@ Taken from the RealDigital *RFSoC 4x2 Reference Manual* rev A6 unless marked oth
     2024.1, not 2024.2 or later.
   - A test synthesis for `xczu48dr-ffvg1517-2-e` passes.
   - The RealDigital board files are extracted to `boards/` and found with
-    `set_param board.repoPaths C:/fpga/rfsoc4x2/boards` (`realdigital.org:rfsoc4x2:part0:1.0`).
+    `set_param board.repoPaths <repo>/boards` (absolute path, forward slashes; `realdigital.org:rfsoc4x2:part0:1.0`).
   - Batch-mode startup takes ≈ 11 s. `tools\vivado.cmd tools\vivado_check.tcl` reruns these checks.
 
 ## 4. Clock plan
@@ -276,7 +276,7 @@ configuration.
 
 ## 5. Frequency plan
 
-> **Proposed revision (2026-11-17), not yet adopted:** [FREQ_PLAN.md](FREQ_PLAN.md). Beam data show a broadband prompt band (≈ 3.7–5.3 GHz through the ZX75BP-4700's skirts) that folds onto the cavity line at QICK's 4423.68 MS/s and, in raw records, below 4.4 GHz at 4046 MS/s. It proposes 3932.16 MS/s under QICK now (a QICK runtime setting, no new firmware) and 3689 MS/s for the custom overlay.
+> **Revision (2026-11-17):** [FREQ_PLAN.md](FREQ_PLAN.md). Its Stage 1 rate, 3932.16 MS/s under QICK, is deployed (v0.2.0, PLAN B); the overlay rate below is still open. Beam data show a broadband prompt band (≈ 3.7–5.3 GHz through the ZX75BP-4700's skirts) that folds onto the cavity line at QICK's 4423.68 MS/s and, in raw records, below 4.4 GHz at 4046 MS/s. It proposes 3932.16 MS/s under QICK now (a QICK runtime setting, no new firmware) and 3689 MS/s for the custom overlay.
 
 `python tools/freqplan.py adc|dac` ranks the sample rates on the 119 MHz grid. Its score is the
 worst-case spacing between the aliases of 2856, the cavity f0 and their low harmonics, and between those
@@ -358,6 +358,9 @@ collect there.
     the trigger's own. No extra logic is needed.
   - (An asynchronous trigger would need ISERDES oversampling (~0.5 ns), or would have to accept ±1 PL clock.)
 - **Outputs**: Pmod pins as triggered gate/marker outputs, through a 1.8 V → TTL buffer.
+- **Soft source (bench only):** `ACQ:Source soft` makes the host restart the program every 1/`ACQ:SoftRate` s
+  (≤ 1000 Hz), with no trigger input. Shots are then unrelated to the machine; the default, `external`,
+  is the production setting (PLAN wave 2 H).
 
 ## 7. Data path and memory budget
 
@@ -420,7 +423,7 @@ Rogue.
 |---|---|---|
 | Board OS | Stock PYNQ image for the 4x2 | Custom Yocto/PetaLinux image |
 | RF config | `xrfdc`/`xrfclk` in Python | Rogue device tree, plus clock-chip register files |
-| Control system | `pythonSoftIOC` (real EPICS base, CA + PVA) in the same process as the overlay. PyPI has no aarch64 wheels for Python 3.10, so build the wheels once (on the board or in an aarch64 container) and pin them. `caproto` (pure Python, CA only) works with `pip install` as a phase-0 fallback. | Rogue's built-in EPICS bridge. Every register in the Rogue tree becomes a PV automatically. |
+| Control system | `pythonSoftIOC` (real EPICS base, CA + PVA) in the same process as the overlay. PyPI has no aarch64 wheels for Python 3.10, so build the wheels once (on the board or in an aarch64 container) and pin them. `caproto` (pure Python, CA only) works with `pip install` as a phase-0 fallback. **Chosen for v1: caproto (PLAN W1).** | Rogue's built-in EPICS bridge. Every register in the Rogue tree becomes a PV automatically. |
 | Build host | Vivado on Windows works | Linux expected (ruckus Makefiles), so WSL2 or a Linux box |
 | Existing 4x2 support | PYNQ image, and prebuilt QICK bitstreams for the 4x2 | No 4x2 target found in public repos; a port is needed |
 | Fit | Fastest to a working box | Best fit if the facility is Rogue/SLAC-standard |
@@ -469,9 +472,9 @@ the 119 MHz grid buys nothing yet. What the decision changes, pending bench conf
 | Area | Spec as written | Under QICK v2 |
 |---|---|---|
 | Channel plan (§2) | A = master, B = cavity (tile 226), C = photodiode | Master and cavity on the two **tile-224** SMAs (now labelled C/D), so they still share a tile. Photodiode on tile 226 m20. Tile 226 m22 (probably J19, "ADC A") has no readout, only the time tagger. A cable change only. |
-| Samples (§7) | Raw | Decimated I/Q (~553 MS/s). The host rebuilds band-limited real samples so records stay scope-like (R5). |
-| fs (§5) | 4046 MS/s | 4423.68 MS/s, tile PLL on. Cavity in zone 3 at a 336 MHz alias. |
-| Trigger (§6) | PPS SMA | PMOD1_0 (J1 pin 10), 0–3.3 V logic (§3), behind a TTL → 3.3 V divider. Each edge restarts the tProc program, so one shot = one program run (PLAN wave 2, E). |
+| Samples (§7) | Raw | Decimated I/Q, fs/8 (552.96 MS/s at the build rate, 491.52 at 3932.16). The host rebuilds band-limited real samples so records stay scope-like (R5). |
+| fs (§5) | 4046 MS/s | 4423.68 MS/s, tile PLL on (cavity in zone 3 at a 336 MHz alias). **3932.16 MS/s since v0.2.0** (FREQ_PLAN Stage 1, a QICK runtime setting; cavity alias 826.2 MHz). |
+| Trigger (§6) | PPS SMA | PMOD1_0 (J1 pin 10), 0–3.3 V logic (§3), behind a TTL → 3.3 V divider. Each edge restarts the tProc program, so one shot = one program run (PLAN wave 2, E). `ACQ:Source soft` (§6) for the bench. |
 | Board OS (§8) | PYNQ v3.1.1 | **PYNQ v3.0.1**: `import qick` raises on PYNQ ≥ 3.1, and QICK's quick-start recommends v3.0.1 for the 4x2. v3.1.1 matters only for a custom overlay built with Vivado 2024.1. |
 | Record meta (§7) | n0, the absolute sample index | No n0: the tProc time counter resets every shot. A shot counter in tProc data memory instead; the reference channel is the cross-shot phase anchor. |
 
@@ -557,17 +560,28 @@ an automatic zero-crossing tracking loop for the MZM phase shifter, and a custom
 
 ## 12. Reference documents
 
-Local copies are in [`docs/`](docs/), downloaded 2026-10-27:
+The files under `docs/` are vendor documents with no redistribution grant, so git ignores them. To
+get the same set, download each one into `docs/` under the name below. The originals were
+downloaded on 2026-10-27:
 
-- **AMD**: DS926 v1.14, PG269 v2.6, DS889 v1.14.
-- **TI**: LMK04828 and LMX2594 data sheets.
-- **RealDigital**: reference manual A6, schematic, XDC files, board files, BOM, mechanical drawing,
-  reference designators and gerbers. The board files are also extracted to [`boards/`](boards/); the
-  other zips are kept as downloaded.
-- **Front end**: MABA-011118 balun, ZX75BP-4700-S+ filter, ZX60-83LN-S+ amplifier.
+| Local file (`docs/`) | Document | Source |
+|---|---|---|
+| `ds926_rfsoc_datasheet.pdf` | AMD DS926 v1.14, RFSoC data sheet | <https://docs.amd.com/r/en-US/ds926-zynq-ultrascale-plus-rfsoc> |
+| `pg269_rf_data_converter.pdf` | AMD PG269 v2.6, RF Data Converter product guide | <https://docs.amd.com/r/en-US/pg269-rf-data-converter> |
+| `ds889_rfsoc_overview.pdf` | AMD DS889 v1.14, RFSoC product overview | search docs.amd.com for "DS889" |
+| `lmk04828_datasheet.pdf` | TI LMK04828 data sheet | <https://www.ti.com/product/LMK04828> |
+| `lmx2594_datasheet.pdf` | TI LMX2594 data sheet | <https://www.ti.com/product/LMX2594> |
+| `rfsoc4x2_reference_manual_A6.pdf` | RealDigital RFSoC 4x2 reference manual, rev A6 | <https://www.realdigital.org/downloads/d6a7543b5033e5dadde272a48bcb5090.pdf> |
+| `rfsoc4x2_schematic.pdf`, `rfsoc4x2_xdc.zip`, `rfsoc4x2_board_files.zip`, `rfsoc4x2_bom.xlsx`, `rfsoc4x2_mechanical.pdf`, `rfsoc4x2_reference_designators.pdf`, `rfsoc4x2_gerbers.zip` | RealDigital RFSoC 4x2 schematic, XDC, Vivado board files, BOM, mechanical drawing, reference designators, gerbers | RealDigital's RFSoC 4x2 product page (downloads) |
+| `maba-011118_balun.pdf` | MACOM MABA-011118 balun data sheet | search macom.com for "MABA-011118" |
+| `zx75bp-4700-s_filter.pdf` | Mini-Circuits ZX75BP-4700-S+ filter data sheet | search minicircuits.com for "ZX75BP-4700-S+" |
+| `zx60-83ln-s_amp.pdf` | Mini-Circuits ZX60-83LN-S+ amplifier data sheet | search minicircuits.com for "ZX60-83LN-S+" |
 
-AMD's docs site returns HTML to plain downloads; [papercuts.md](papercuts.md) has the API route that
-fetches the PDFs.
+The board files from `rfsoc4x2_board_files.zip` are tracked, extracted, in [`boards/`](boards/)
+(Apache-2.0, `boards/rfsoc4x2/1.0/LICENSE`). AMD's docs site returns HTML to plain downloads;
+[papercuts.md](papercuts.md) has the API route that fetches the PDFs.
+
+What the main documents are used for:
 
 | Doc | What it's for | Where |
 |---|---|---|

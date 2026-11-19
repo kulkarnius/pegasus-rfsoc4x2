@@ -1,6 +1,6 @@
 # Handoff: the BAM RFSoC digitizer into pegasus_epics_upgrade
 
-From `C:\fpga\rfsoc4x2` to the `pegasus_epics_upgrade` repo. Written 2026-11-04,
+From this repo (`rfsoc4x2`) to the `pegasus_epics_upgrade` repo. Written 2026-11-04,
 updated 2026-11-05 after the board went into production.
 This is part P of [PLAN.md](PLAN.md) "Wave 3", written so a session in the pegasus repo can
 work from it alone. Follow that repo's own `CLAUDE.md` (worktree, papercuts, T1/T2 before a PR).
@@ -54,7 +54,7 @@ docs cover every served name, the same rule as pegasus's own IOCs.
 
 ## 3. What the IOC serves (57 PVs, `board/pvs.json`)
 
-The authority is `C:\fpga\rfsoc4x2\board\pvs.json`; read it rather than this summary. `<n>` = readout 0–2,
+The authority is `board\pvs.json` in the rfsoc4x2 checkout; read it rather than this summary. `<n>` = readout 0–2,
 `<m>` = DAC 0–1, `<k>` = marker pin 0–7.
 
 | Group | PVs | Notes |
@@ -155,7 +155,7 @@ Expect `v0.2.0`, ≈ 2.50 and 0.
 
 ```powershell
 $env:EPICS_CA_ADDR_LIST="127.0.0.1"; $env:EPICS_CA_AUTO_ADDR_LIST="NO"; $env:EPICS_CA_MAX_ARRAY_BYTES="1000000"
-python C:\fpga\rfsoc4x2\board\ioc.py --fake --prefix PEGTEST:DIAG:BAM1: --interfaces 127.0.0.1
+python <rfsoc4x2 checkout>\board\ioc.py --fake --prefix PEGTEST:DIAG:BAM1: --interfaces 127.0.0.1
 ```
 
 It serves every PV in `pvs.json` with synthetic 10 Hz records once `ACQ:Arm` is On. `--fake` refuses a
