@@ -5,7 +5,8 @@
 
 Every key of daq.DEFAULTS is a setpoint PV of the same name under --prefix. A write is checked and,
 while armed, re-arms at once, so the next trigger uses it. A value the firmware can't run is
-rejected back to the client. ACQ:Arm (Off/On) starts and stops triggered acquisition.
+rejected back to the client. ACQ:Arm (Off/On) starts and stops triggered acquisition. ACQ:Source
+'soft' fires the shots from the board at ACQ:SoftRate (Hz) with no trigger cable (loopback, bench).
 Readbacks (read-only to clients): ACQ:Count/Missed/Rate, CH<n>:I/Q (latest record), and REC, one whole
 shot in one int32 array (layout in tools/record.py; consumers should read REC, not CH<n>:I/Q, so
 channels can't come from different shots). Clients need EPICS_CA_MAX_ARRAY_BYTES >= 1000000 for the
@@ -44,7 +45,7 @@ import daq
 
 REC_FORMAT = 1      # layout of REC (header, then int16 I/Q, see Ioc.poll): any change to it must bump this
 PVS_JSON = Path(__file__).resolve().parent / 'pvs.json'
-UNITS = {'Delay': 'us', 'Width': 'us', 'Freq': 'MHz', 'Phase': 'deg'}
+UNITS = {'Delay': 'us', 'Width': 'us', 'Freq': 'MHz', 'Phase': 'deg', 'SoftRate': 'Hz'}
 
 
 class Setpoint:
@@ -84,7 +85,7 @@ def load_state(path, d):
                 v = np.asarray(v, float).ravel()
             elif isinstance(cfg[k], str):
                 v = str(v)
-                if v not in daq.MODES:
+                if v not in daq.ENUMS.get(k, daq.MODES):
                     raise ValueError(f"{k}: {v!r}")
             else:
                 v = type(cfg[k])(v)
@@ -106,7 +107,7 @@ class Ioc:
         self.pv = {}
         for key, v in self.cfg.items():
             if isinstance(v, str):
-                ch = SetEnum(value=v, enum_strings=daq.MODES)
+                ch = SetEnum(value=v, enum_strings=daq.ENUMS.get(key, daq.MODES))
             elif isinstance(v, np.ndarray):
                 ch = SetDouble(value=v.tolist() or [0.0], max_length=d.env_len)      # caproto wants >= 1 element
             elif isinstance(v, int):
@@ -285,10 +286,11 @@ def _check():
         p = Path(t) / 'sub' / 'state.json'                  # the parent directory is created
         a = Ioc(daq.FakeDaq(), 'X:', info, p)
         assert a.cfg.keys() == daq.DEFAULTS.keys() and not a.armed0
-        for k, v in [('ACQ:Delay', 2.5), ('AWG0:I', [0.1, -0.2, 0.3]), ('AWG0:Mode', 'env'), ('ACQ:Arm', 'On')]:
+        for k, v in [('ACQ:Delay', 2.5), ('AWG0:I', [0.1, -0.2, 0.3]), ('AWG0:Mode', 'env'), ('ACQ:Source', 'soft'),
+                     ('ACQ:Arm', 'On')]:
             asyncio.run(a.write(k, v))
         b = Ioc(daq.FakeDaq(), 'X:', info, p)
-        assert b.armed0 and b.cfg['ACQ:Delay'] == 2.5 and b.cfg['AWG0:Mode'] == 'env'
+        assert b.armed0 and b.cfg['ACQ:Delay'] == 2.5 and b.cfg['AWG0:Mode'] == 'env' and b.cfg['ACQ:Source'] == 'soft'
         assert b.cfg.keys() == a.cfg.keys() and np.array_equal(b.cfg['AWG0:I'], [0.1, -0.2, 0.3])
         assert b.cfg['ACQ:Length'] == 256 and isinstance(b.cfg['ACQ:Length'], int)
         assert list(b.pv['AWG0:I'].value) == [0.1, -0.2, 0.3] and b.pv['ACQ:Arm'].value in (1, 'On')

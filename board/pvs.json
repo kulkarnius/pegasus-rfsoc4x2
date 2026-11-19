@@ -48,6 +48,23 @@
   "units": "Hz"
  },
  {
+  "name": "ACQ:SoftRate",
+  "type": "double",
+  "access": "rw",
+  "count": 1,
+  "units": "Hz"
+ },
+ {
+  "name": "ACQ:Source",
+  "type": "enum",
+  "access": "rw",
+  "count": 1,
+  "enum": [
+   "external",
+   "soft"
+  ]
+ },
+ {
   "name": "AWG0:Delay",
   "type": "double",
   "access": "rw",

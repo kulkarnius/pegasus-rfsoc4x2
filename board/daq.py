@@ -6,6 +6,10 @@ the readouts to finish, then bump a shot counter. Restarts clear the tProc regis
 lives in data memory and is copied to s_core_w1 for the host. The decimated buffers append one
 record per trigger and wrap (buffer.sv), so they form a ring that poll() reads behind the writer.
 
+ACQ:Source 'soft' needs no trigger cable: poll() restarts the program itself (soc.start_tproc(), internal
+start) every 1/ACQ:SoftRate s, for loopback and bench work. Shots then sit at a random time against
+anything outside the board, and the rate is only as steady as the caller's poll loop.
+
 The config is a flat dict keyed by PV name (board/ioc.py serves exactly these keys). Times are in us
 after T0; frequencies are true RF in MHz.
 """
@@ -15,9 +19,11 @@ import numpy as np
 
 T0 = 0.5    # us from restart to time zero. ponytail: fixed slack for the tProc after a restart; PLAN G6 measures the real latency
 MODES = ['off', 'cw', 'env', 'raw']
+SOURCES = ['external', 'soft']
+ENUMS = {'ACQ:Source': SOURCES}     # enum-valued keys; any other string key is an AWG mode
 N_RO, N_GEN, N_PIN = 3, 2, 8
 
-DEFAULTS = {'ACQ:Delay': 1.0, 'ACQ:Length': 256}
+DEFAULTS = {'ACQ:Delay': 1.0, 'ACQ:Length': 256, 'ACQ:Source': 'external', 'ACQ:SoftRate': 10.0}
 for _n, _f in enumerate([2856.0, 4758.4, 0.0]):     # SPEC §8: master + cavity on tile 224, photodiode at baseband
     DEFAULTS[f'CH{_n}:Freq'] = _f
 for _m in range(N_GEN):
@@ -33,6 +39,8 @@ def check(cfg, buf_len, env_len):
     L = cfg['ACQ:Length']
     if L < 16 or L & (L - 1) or 2 * L > buf_len:
         raise ValueError(f"ACQ:Length must be a power of 2 in 16..{buf_len // 2}")
+    if cfg['ACQ:Source'] not in SOURCES or not 0 < cfg['ACQ:SoftRate'] <= 1000:
+        raise ValueError(f"ACQ:Source one of {SOURCES}, ACQ:SoftRate in (0, 1000] Hz")
     for m in range(N_GEN):
         i, q = cfg[f'AWG{m}:I'], cfg[f'AWG{m}:Q']
         if cfg[f'AWG{m}:Mode'] in ('env', 'raw') and not 0 < len(i) <= env_len:
@@ -74,6 +82,8 @@ def build(soccfg, cfg):
         spc = g['samps_per_clk']
         pad = -len(i) % spc + (3 * spc if len(i) < 3 * spc else 0)     # whole fabric clocks, >= 3 of them
         i, q = (np.round(np.r_[x, np.zeros(pad)] * g['maxv']).astype(np.int16) for x in (i, q))
+        # env (outsel 'product') comes out at half the amplitude of raw/cw for the same I x Gain: QICK's
+        # generator convention (asm_v2 plays flat_top's 'dds' segment at half gain to match). Bench 2026-11-19: -5.8 dB.
         p.add_envelope(ch=m, name=f"env{m}", idata=i, qdata=q)
         if mode == 'raw':       # envelope straight to the DAC: I is the sample stream
             par.update(freq=0, phase=0, outsel='input')
@@ -122,7 +132,10 @@ class Daq:
         prog.config_bufs(self.soc, enable_avg=False, enable_buf=True)
         self.soc.clear_tproc_counter(1)                 # drop the last program's s_core_w1
         self.L, self.depth, self.n, self.missed = cfg['ACQ:Length'], self.buf_len // cfg['ACQ:Length'], 0, 0
-        self.soc.start_src('external')
+        self.period = 1 / cfg['ACQ:SoftRate'] if cfg['ACQ:Source'] == 'soft' else None
+        self.t_fire = 0.0
+        if not self.period:
+            self.soc.start_src('external')              # soft: config_all left it internal
         self.armed = True
 
     def disarm(self):
@@ -134,6 +147,9 @@ class Daq:
         """New complete records since the last call: [(count, int16 iq[N_RO, 2, L])]."""
         if not self.armed:
             return []
+        if self.period and time.monotonic() - self.t_fire >= self.period:
+            self.soc.start_tproc()                      # soft trigger; ignored if a shot is still running
+            self.t_fire = time.monotonic()
         n = self.soc.get_tproc_counter(1)               # 0 while a shot runs (restart clears it); skip
         if n <= self.n:
             return []
@@ -162,12 +178,13 @@ class FakeDaq:
     def arm(self, cfg):
         check(cfg, self.buf_len, self.env_len)
         self.L, self.armed, self.missed, self.n = cfg['ACQ:Length'], True, 0, 0
+        self.period = 1 / cfg['ACQ:SoftRate'] if cfg['ACQ:Source'] == 'soft' else 0.1
 
     def disarm(self):
         self.armed = False
 
     def poll(self):
-        if not self.armed or time.time() - self.t < 0.1:
+        if not self.armed or time.time() - self.t < self.period:
             return []
         self.t, self.n = time.time(), self.n + 1
         k = np.arange(self.L)
@@ -195,7 +212,7 @@ def _check():
             return np.zeros((length, 2), np.int16)
 
     d = Daq.__new__(Daq)
-    d.armed, d.L, d.depth, d.n, d.missed = True, 256, 4096 // 256, 0, 0
+    d.armed, d.L, d.depth, d.n, d.missed, d.period = True, 256, 4096 // 256, 0, 0, None
     d.soc = Soc([0, 16, 16, 17, 17, 36, 36])                # each poll reads the counter twice
     assert d.poll() == []                                   # 0 while a shot runs
     # 16 done: shot 17 may already be rewriting shot 1's slot, so shot 1 is dropped (usable depth = depth-1)
@@ -204,6 +221,21 @@ def _check():
     assert [r[0] for r in d.poll()] == [17]
     assert d.soc.reads == [(0, 4096), (1, 4096), (2, 0)]   # s=16: ch0/1 at 4096, ch2 wrapped to 0
     assert [r[0] for r in d.poll()] == list(range(22, 37)) and d.missed == 5   # 19 new: 3 overrun + 1 at risk
+    # soft source: poll() fires start_tproc at most once per period
+    fired = []
+    d.soc = Soc([36] * 4)
+    d.soc.start_tproc = lambda: fired.append(1)
+    d.period, d.t_fire = 0.05, 0.0
+    d.poll(); d.poll()
+    assert len(fired) == 1
+    time.sleep(0.06); d.poll()
+    assert len(fired) == 2
+    for bad in [{'ACQ:Source': 'ext'}, {'ACQ:Source': 'soft', 'ACQ:SoftRate': 0.0}]:
+        try:
+            check({**DEFAULTS, **bad}, 16384, 65536)
+            assert 0, bad
+        except ValueError:
+            pass
     assert FakeDaq().fs_dec == 552.96 and FakeDaq(adc_fs=3932.16).fs_dec == 491.52     # build rate, FREQ_PLAN rate
     print("daq.py self-check OK")
 
