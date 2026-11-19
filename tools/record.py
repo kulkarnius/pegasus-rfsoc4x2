@@ -1,7 +1,7 @@
 """Host side: board records (decimated I/Q, PLAN wave 2) -> scope-like real samples for the BAM Sims scripts.
 
     python tools/record.py                        # self-check
-    python tools/record.py grab 20 out/ [--prefix BAM:RFSOC:]   # 20 records from the IOC -> out/rec_<count>.csv
+    python tools/record.py grab 20 out/ [--prefix PEG:DIAG:BAM1:]   # 20 records from the IOC -> out/rec_<count>.csv
     python tools/record.py grab 300 s_band/ --split 0,1          # readouts 0, 1 as [t, ch1, ch2] (PLAN S)
     python tools/record.py grab 300 s_band/ --split 0,1 --iq-only   # only s_band/iq/, for long records
     python tools/record.py log recs/scan1 [--prefix P]  # every record, raw + timestamps, until Ctrl-C (load())
@@ -71,7 +71,7 @@ def split_iq(r, a, b):
     return np.column_stack([t, z[0].real, z[0].imag, z[1].real, z[1].imag])
 
 
-def grab(n, out, prefix='BAM:RFSOC:', split=None, iq_only=False):
+def grab(n, out, prefix='PEG:DIAG:BAM1:', split=None, iq_only=False):
     """Save the next n records from the IOC as headerless CSV, the Sims scripts' scope format, or with
     split=(a, b) two readouts in Noise Characterization's [t, ch1, ch2] format, plus the same shot's
     decimated I/Q in out/iq/ (a subfolder, so the scripts' *.csv listing doesn't pick it up).
@@ -80,6 +80,7 @@ def grab(n, out, prefix='BAM:RFSOC:', split=None, iq_only=False):
     import queue
     from caproto.threading.client import Context
     pv, = Context().get_pvs(prefix + 'REC')
+    pv.wait_for_connection(timeout=5)   # a wrong prefix fails here instead of waiting forever (get_pvs doesn't wait)
     out = pathlib.Path(out)
     (out / 'iq' if split else out).mkdir(parents=True, exist_ok=True)
     q = queue.Queue()                   # a subscription, so slow CSV writing queues records instead of skipping them
@@ -198,7 +199,7 @@ if __name__ == "__main__":
         a = sys.argv[2:]
         opt = lambda k: a[a.index(k) + 1] if k in a else None
         split = opt('--split')
-        grab(int(a[0]), a[1], opt('--prefix') or 'BAM:RFSOC:', split and tuple(map(int, split.split(','))),
+        grab(int(a[0]), a[1], opt('--prefix') or 'PEG:DIAG:BAM1:', split and tuple(map(int, split.split(','))),
              '--iq-only' in a)
     else:
         _check()

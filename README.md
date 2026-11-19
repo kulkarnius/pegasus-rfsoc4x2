@@ -112,11 +112,11 @@ python -m caproto.commandline.put BAM:RFSOC:ACQ:Arm On
 ```
 
 ```bash
-python tools/record.py grab 10 recs/
+python tools/record.py grab 10 recs/ --prefix BAM:RFSOC:
 ```
 
-`grab` defaults to the fake IOC's `BAM:RFSOC:` prefix. Against the real board add `--prefix PEG:DIAG:BAM1:`
-(with `EPICS_CA_ADDR_LIST=10.0.0.27`); without it the search never answers and `grab` waits forever.
+`grab` and `log` default to the production prefix `PEG:DIAG:BAM1:` (with `EPICS_CA_ADDR_LIST=10.0.0.27` for the
+real board), so the fake IOC needs `--prefix BAM:RFSOC:`. A prefix nobody serves fails after 5 s.
 
 On the board by hand: `sudo python3 board/ioc.py --bit <qick tProc-v2 4x2 .bit> --adc-fs 3932.16` (PLAN F1
 for the file). In production `bam-ioc.service` runs it with the values in `/etc/bam-ioc.env`.
