@@ -7,7 +7,7 @@ linac. Its first job is to replace the 20 GS/s scope that digitizes the BAM cavi
 
 ## Getting started
 
-- **PC side** (fake IOC, record tools, frequency/clock scripts): Python 3 with `pip install numpy caproto`.
+- **PC side** (fake IOC, record tools, frequency/clock scripts): Python 3 with `pip install numpy caproto` (`scipy` too for `tools/phasenoise.py`).
   See [Commands](#commands).
 - **Board side**: the RFSoC 4x2 PYNQ v3.0.1 image, the QICK tProc-v2 4x2 bitstream (`fw/qick_4x2.bit`)
   and the wheels in `fw/wheels/` are not in git. Their sources are in SPEC §8 and PLAN wave 2 T;
@@ -39,9 +39,9 @@ linac. Its first job is to replace the 20 GS/s scope that digitizes the BAM cavi
 | [SPEC.md](SPEC.md) | The spec: requirements, channel plan, board facts, clock and frequency plan, trigger, record format, framework, phases, open questions. **Normative.** |
 | [FREQ_PLAN.md](FREQ_PLAN.md) | ADC rate revision (2026-11-17) for the beam's prompt band: 3932.16 MS/s on QICK (deployed in v0.2.0), 3689 MS/s raw for a later overlay (still a proposal), why it differs from SPEC §5, the open questions answered, and the execution plan. |
 | [tools/board_fs_test.py](tools/board_fs_test.py) | Runs on the board as root: QICK at another ADC rate, loopback tones into readout 0 (FREQ_PLAN E2). |
-| [tools/board_soft_test.py](tools/board_soft_test.py) | Runs on the board as root, `bam-ioc` stopped: soft trigger at 20 Hz with a CW 600 MHz loopback DAC A → ADC D (prints `SOFT_OK`), then `env` vs `raw` 1 µs bursts (PLAN G7). |
+| [tools/board_soft_test.py](tools/board_soft_test.py) | Runs on the board as root, `bam-ioc` stopped: soft trigger at 20 Hz with a CW 600 MHz loopback DAC A → ADC D (prints `SOFT_OK`), then `env` vs `raw` 1 µs bursts (PLAN G7). Uses `board/daq.py` from the same checkout (or a copy next to it), not the installed one. |
 | [tools/board_probe.sh](tools/board_probe.sh) | Read-only board probe over ssh (no root): what `install.sh` and `bam-ioc.service` assume. |
-| [LICENSE](LICENSE), [LICENSES/](LICENSES/) | MIT for this repo; the QICK (MIT) and RFSoC-PYNQ (BSD-3) texts for the third-party files below. |
+| [LICENSE](LICENSE), [LICENSES/](LICENSES/) | MIT for this repo; the QICK (MIT), RFSoC-PYNQ (BSD-3) and Apache-2.0 (boards/) texts for the third-party files below. |
 | [NOTES.md](NOTES.md) | Decision log: the questions behind the spec, the reasoning, and the user's standing directives. Read this to know *why*. |
 | [PLAN.md](PLAN.md) | Wave 1 (phase-noise bring-up) and wave 2 (QICK acquisition, AWG, EPICS) work plans: tasks, bench checks, exit criteria, open decisions. |
 | [PEGASUS_HANDOFF.md](PEGASUS_HANDOFF.md) | Handoff to `pegasus_epics_upgrade`: the contract, PV semantics, host facts and tasks P1–P6. |
@@ -74,7 +74,7 @@ own licenses; the texts are in [LICENSES/](LICENSES/) and `boards/`.
 
 ## Third-party files
 
-- `boards/`: RealDigital/Xilinx Vivado board files, Apache-2.0 (`boards/rfsoc4x2/1.0/LICENSE`).
+- `boards/`: RealDigital/Xilinx Vivado board files, Apache-2.0 (notice in `boards/rfsoc4x2/1.0/LICENSE`, full text in [LICENSES/apache-2.0.txt](LICENSES/apache-2.0.txt)).
 - `clocks/LMK04828_245.76_stock.txt`, `clocks/LMX2594_491.52_stock.txt`: stock RFSoC 4x2 clock
   register files from Xilinx RFSoC-PYNQ (`xrfclk`), BSD-3-Clause ([LICENSES/rfsoc-pynq.txt](LICENSES/rfsoc-pynq.txt)). The `lmk_2380_*` files are derived
   from them.
@@ -119,9 +119,9 @@ for the file). In production `bam-ioc.service` runs it with the values in `/etc/
 
 ### Loopback without a trigger cable (soft trigger)
 
-`ACQ:Source soft` makes the board fire its own shots at `ACQ:SoftRate` Hz (default 10, max 1000), at a
+`ACQ:Source soft` makes the board fire its own shots at `ACQ:SoftRate` Hz (default 10, max 100), at a
 random time against anything outside the board. The default, `external`, waits for the TTL on PMOD1_0,
-so production is unchanged. Cable DAC A → ADC D (≲ 600 MHz, see papercuts), then:
+so production is unchanged. `soft` is never saved in the state file: an IOC restart is always back on `external`. Cable DAC A → ADC D (≲ 600 MHz, see papercuts), then:
 
 ```bash
 python -m caproto.commandline.put BAM:RFSOC:AWG1:Freq 600

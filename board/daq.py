@@ -8,7 +8,8 @@ record per trigger and wrap (buffer.sv), so they form a ring that poll() reads b
 
 ACQ:Source 'soft' needs no trigger cable: poll() restarts the program itself (soc.start_tproc(), internal
 start) every 1/ACQ:SoftRate s, for loopback and bench work. Shots then sit at a random time against
-anything outside the board, and the rate is only as steady as the caller's poll loop.
+anything outside the board, and the rate is only as steady as the caller's poll loop (a 2 ms loop in the IOC,
+so 100 Hz is the cap). Each start restarts the program, so 1/SoftRate must outlast a shot.
 
 The config is a flat dict keyed by PV name (board/ioc.py serves exactly these keys). Times are in us
 after T0; frequencies are true RF in MHz.
@@ -39,8 +40,8 @@ def check(cfg, buf_len, env_len):
     L = cfg['ACQ:Length']
     if L < 16 or L & (L - 1) or 2 * L > buf_len:
         raise ValueError(f"ACQ:Length must be a power of 2 in 16..{buf_len // 2}")
-    if cfg['ACQ:Source'] not in SOURCES or not 0 < cfg['ACQ:SoftRate'] <= 1000:
-        raise ValueError(f"ACQ:Source one of {SOURCES}, ACQ:SoftRate in (0, 1000] Hz")
+    if cfg['ACQ:Source'] not in SOURCES or not 0 < cfg['ACQ:SoftRate'] <= 100:
+        raise ValueError(f"ACQ:Source one of {SOURCES}, ACQ:SoftRate in (0, 100] Hz")
     for m in range(N_GEN):
         i, q = cfg[f'AWG{m}:I'], cfg[f'AWG{m}:Q']
         if cfg[f'AWG{m}:Mode'] in ('env', 'raw') and not 0 < len(i) <= env_len:
@@ -147,10 +148,10 @@ class Daq:
         """New complete records since the last call: [(count, int16 iq[N_RO, 2, L])]."""
         if not self.armed:
             return []
-        if self.period and time.monotonic() - self.t_fire >= self.period:
-            self.soc.start_tproc()                      # soft trigger; ignored if a shot is still running
-            self.t_fire = time.monotonic()
         n = self.soc.get_tproc_counter(1)               # 0 while a shot runs (restart clears it); skip
+        if self.period and time.monotonic() - self.t_fire >= self.period:
+            self.soc.start_tproc()                      # soft trigger, after the read: firing first reads the new shot's 0
+            self.t_fire = time.monotonic()
         if n <= self.n:
             return []
         first = max(self.n, n - self.depth)
@@ -221,15 +222,16 @@ def _check():
     assert [r[0] for r in d.poll()] == [17]
     assert d.soc.reads == [(0, 4096), (1, 4096), (2, 0)]   # s=16: ch0/1 at 4096, ch2 wrapped to 0
     assert [r[0] for r in d.poll()] == list(range(22, 37)) and d.missed == 5   # 19 new: 3 overrun + 1 at risk
-    # soft source: poll() fires start_tproc at most once per period
-    fired = []
-    d.soc = Soc([36] * 4)
-    d.soc.start_tproc = lambda: fired.append(1)
+    # soft source: poll() fires start_tproc at most once per period, after reading the counter
+    log = []
+    d.soc = Soc([])
+    d.soc.get_tproc_counter = lambda addr: log.append('read') or 36
+    d.soc.start_tproc = lambda: log.append('fire')
     d.period, d.t_fire = 0.05, 0.0
     d.poll(); d.poll()
-    assert len(fired) == 1
+    assert log == ['read', 'fire', 'read'], log
     time.sleep(0.06); d.poll()
-    assert len(fired) == 2
+    assert log.count('fire') == 2
     for bad in [{'ACQ:Source': 'ext'}, {'ACQ:Source': 'soft', 'ACQ:SoftRate': 0.0}]:
         try:
             check({**DEFAULTS, **bad}, 16384, 65536)

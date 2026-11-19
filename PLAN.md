@@ -162,7 +162,7 @@ What stock QICK does **not** cover (each has a task or check below):
 |---|---|---|---|---|
 | F1 | Get the tProc-v2 4x2 `.bit` + `.hwh` prebuilt from QICK's `s3df.slac.stanford.edu/people/meeg/qick/fw/` (open it in your own browser; papercuts), plus `qick_lib` from the same date. Fallback: build `bd_2023-1.tcl`, which needs Vivado 2023.1 (licensed, not installed) or an unproven port to 2024.1. | User | No | Files in `fw/`, with the build date and QICK commit noted in SPEC §8. |
 | F2 | Trigger front end: 50 Ω termination, then a divider to 0/3.3 V into PMOD1_0 (J1 pin 10). Size it for the machine trigger's level (Q5, still open). | User | No | A scope shows 0/1.8 V at the pin with the real trigger. |
-| F3 | `board/daq.py`: `QickSoc` + a config dict → one-shot `QickProgramV2` (`add_readoutconfig`/`send_readoutconfig`, `add_envelope`/`add_pulse`/`pulse` on both gens, `trigger(ros, pins)` at the acquisition delay, dmem shot counter, `end`). `arm()` loads it with `start_src="external"`. `poll()` reads the counter, `transfer_buf`s the new ring slots, and counts gaps and overruns. Reuse the envelope pattern in `Desktop/FPGA/flat_top_pulse_qick.py`. | Claude | Write: no. Run: yes | Compiles against the G1 `soccfg` JSON; passes G3–G5. |
+| F3 | `board/daq.py`: `QickSoc` + a config dict → one-shot `QickProgramV2` (`add_readoutconfig`/`send_readoutconfig`, `add_envelope`/`add_pulse`/`pulse` on both gens, `trigger(ros, pins)` at the acquisition delay, dmem shot counter, `end`). `arm()` loads it with `start_src="external"`. `poll()` reads the counter, `transfer_buf`s the new ring slots, and counts gaps and overruns. Reuse the envelope pattern from QICK's flat_top pulse demos. | Claude | Write: no. Run: yes | Compiles against the G1 `soccfg` JSON; passes G3–G5. |
 | F4 | `board/ioc.py`: the PVs in H → config dict → `daq.arm()` on change. Each shot's PVs post with one timestamp. `--fake` swaps in a stub daq so the IOC runs on the PC now. | Claude | No | `caget`/`caput` from the PC work against `--fake`, then against the board. |
 | F5 | `tools/record.py` (host): x(t) = 2·Re{IQ(t)·e^{j2πft}} on any time grid, with f the true RF frequency. No conjugation is needed in even zones, because QICK runs the NCO at f mod fs. Writes `[t, ref, sig, pd]` CSV. Self-check: synthetic ringdown → decimate → rebuild matches in band. | Claude | No | Self-check passes; B7's MATLAB run reads the CSV. |
 | F6 | The board has no internet: collect `qick` and the EPICS server's wheels on the PC, `scp` them over, pin versions. | Claude | No | `pip install --no-index` works on the board. |
@@ -254,7 +254,7 @@ sudo bash -c 'source /etc/profile.d/pynq_venv.sh && pip install --no-index --fin
 The v3.0.1 card is being flashed now. **Stage 1** brings the QICK box up and ends with the analysis
 pipeline proven on a loopback tone. **Stage 2** is C5 done properly: the clean S-band clock, split into
 two readouts, with an attenuator ladder. It is analysed by the Noise Characterization scripts
-(`LBNL Cavity\BAM\Noise Characterization`) exactly as the TDS6804B's `s-band-cw-data` was, so board and
+(the separate Noise Characterization analysis) exactly as the TDS6804B's `s-band-cw-data` was, so board and
 scope sit on one Δφ-vs-σ/A plot against the CRLB.
 
 ### Stage 1: bring-up (runbook T, in this order)
@@ -382,7 +382,7 @@ pin 0–7.
 | `ACQ:Arm` | enum Off/On | Arm / disarm. While armed, every setpoint write re-arms at once. |
 | `ACQ:Delay` | double, us | Trigger → window start, after the fixed `INFO:T0` |
 | `ACQ:Length` | long | Record length, 16–8192 decimated samples (half the 16384 buffer), power of 2 |
-| `ACQ:Source`, `ACQ:SoftRate` | enum external/soft, double Hz | Trigger source. `soft`: the host restarts the program every 1/SoftRate s (≤ 1000 Hz), no cable; bench only. Default `external`. |
+| `ACQ:Source`, `ACQ:SoftRate` | enum external/soft, double Hz | Trigger source. `soft`: the host restarts the program every 1/SoftRate s (≤ 100 Hz), no cable; bench only; not kept across restarts. Default `external`. |
 | `ACQ:Count`, `ACQ:Missed` | long | Shot counter (restarts at 1 on arm); gaps + ring overruns |
 | `ACQ:Rate` | double, Hz | Measured trigger rate |
 | `CH<n>:Freq` | double, MHz | Readout NCO, as the true RF frequency |

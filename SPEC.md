@@ -30,7 +30,7 @@ Key frequencies:
   - Any f0/master ratio must use the measured values of both.
 
 **Prior work.** The estimator, its CRLB, and the scope-based jitter analysis (TDS6804B at 20 GS/s)
-already exist in the BAM Sims analysis folder (separate from this repo, `LBNL Cavity\BAM\Sims`).
+already exist in the BAM Sims analysis folder (separate from this repo).
 
 - Key files: `bam_constants.m`, `crlb_derivation.md`, `crlb_decaying_sinusoid.md`,
   `tds6804b_phase_limit.md`, `snr_vs_charge.m`, `estimate_phase_mf2.m` / `mf2_design.m` (the
@@ -359,7 +359,7 @@ collect there.
   - (An asynchronous trigger would need ISERDES oversampling (~0.5 ns), or would have to accept ±1 PL clock.)
 - **Outputs**: Pmod pins as triggered gate/marker outputs, through a 1.8 V → TTL buffer.
 - **Soft source (bench only):** `ACQ:Source soft` makes the host restart the program every 1/`ACQ:SoftRate` s
-  (≤ 1000 Hz), with no trigger input. Shots are then unrelated to the machine; the default, `external`,
+  (≤ 100 Hz), with no trigger input. It is not kept across an IOC restart. Shots are then unrelated to the machine; the default, `external`,
   is the production setting (PLAN wave 2 H).
 
 ## 7. Data path and memory budget

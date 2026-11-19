@@ -6,7 +6,8 @@
 Every key of daq.DEFAULTS is a setpoint PV of the same name under --prefix. A write is checked and,
 while armed, re-arms at once, so the next trigger uses it. A value the firmware can't run is
 rejected back to the client. ACQ:Arm (Off/On) starts and stops triggered acquisition. ACQ:Source
-'soft' fires the shots from the board at ACQ:SoftRate (Hz) with no trigger cable (loopback, bench).
+'soft' fires the shots from the board at ACQ:SoftRate (Hz) with no trigger cable (loopback, bench); it is
+not kept in the state file, so a restart is always back on 'external'.
 Readbacks (read-only to clients): ACQ:Count/Missed/Rate, CH<n>:I/Q (latest record), and REC, one whole
 shot in one int32 array (layout in tools/record.py; consumers should read REC, not CH<n>:I/Q, so
 channels can't come from different shots). Clients need EPICS_CA_MAX_ARRAY_BYTES >= 1000000 for the
@@ -79,7 +80,7 @@ def load_state(path, d):
         s = json.loads(Path(path).read_text())
         cfg = dict(daq.DEFAULTS)
         for k, v in s['cfg'].items():
-            if k not in cfg:
+            if k not in cfg or k == 'ACQ:Source':     # never restart in soft mode: production would look healthy on fake shots
                 continue
             if isinstance(cfg[k], np.ndarray):
                 v = np.asarray(v, float).ravel()
@@ -290,7 +291,7 @@ def _check():
                      ('ACQ:Arm', 'On')]:
             asyncio.run(a.write(k, v))
         b = Ioc(daq.FakeDaq(), 'X:', info, p)
-        assert b.armed0 and b.cfg['ACQ:Delay'] == 2.5 and b.cfg['AWG0:Mode'] == 'env' and b.cfg['ACQ:Source'] == 'soft'
+        assert b.armed0 and b.cfg['ACQ:Delay'] == 2.5 and b.cfg['AWG0:Mode'] == 'env' and b.cfg['ACQ:Source'] == 'external'
         assert b.cfg.keys() == a.cfg.keys() and np.array_equal(b.cfg['AWG0:I'], [0.1, -0.2, 0.3])
         assert b.cfg['ACQ:Length'] == 256 and isinstance(b.cfg['ACQ:Length'], int)
         assert list(b.pv['AWG0:I'].value) == [0.1, -0.2, 0.3] and b.pv['ACQ:Arm'].value in (1, 'On')

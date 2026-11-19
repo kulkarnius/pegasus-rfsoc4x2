@@ -4,11 +4,12 @@
 2. G7: AWG1 'env' (1 us rectangle on a 600 MHz carrier) and 'raw' (the same burst as DAC samples): prints the
    readout-0 envelope in 0.13 us bins, so the onset, length and level of each can be compared.
 
-    python3 board_soft_test.py [adc_fs]      # daq.py next to this file; adc_fs default 3932.16
+    python3 board_soft_test.py [adc_fs]      # adc_fs default 3932.16. Imports daq.py from next to this file or ../board
 """
 import os, sys, time
 import numpy as np
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_here = os.path.dirname(os.path.abspath(__file__))
+sys.path[:0] = [_here, os.path.join(_here, '..', 'board')]     # a copy next to it wins over the checkout's
 import daq
 
 FS = float(sys.argv[1]) if sys.argv[1:] else 3932.16

@@ -52,7 +52,10 @@ header, not a constant. v0.1.1's differences from v0.1.0, also in the board's be
 PR that updates the copy and the pin, plus `pv_registry.md`. The registry tests stay red until the
 docs cover every served name, the same rule as pegasus's own IOCs.
 
-## 3. What the IOC serves (57 PVs, `board/pvs.json`)
+## 3. What the IOC serves (57 PVs at v0.2.0, `board/pvs.json`)
+
+Main after v0.2.0 adds `ACQ:Source` (enum external/soft) and `ACQ:SoftRate` (Hz), 59 PVs. Production must read
+`ACQ:Source` = `external`; `soft` fires shots unrelated to the beam (bench only, never restored at IOC start).
 
 The authority is `board\pvs.json` in the rfsoc4x2 checkout; read it rather than this summary. `<n>` = readout 0–2,
 `<m>` = DAC 0–1, `<k>` = marker pin 0–7.
